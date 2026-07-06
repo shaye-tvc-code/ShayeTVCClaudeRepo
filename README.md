@@ -41,11 +41,10 @@ match.
   currency). Update this once at the start of each month in
   Shopify Admin → Settings → Custom data → Shop metafields. If it's
   missing, the report will call that out instead of guessing.
-- **Email delivery**: the routine sends via whichever connector is
-  available and capable of sending on the account (e.g. Superhuman Mail),
-  falling back to creating a Gmail draft addressed to
-  shaye@vergecollective.com.au if no send-capable connector is enabled.
-  Enable the preferred connector in this chat's connector settings.
+- **Email delivery**: sends via Superhuman Mail (`create_or_update_draft` +
+  `send_draft`), which must stay enabled for the session/chat the trigger
+  runs in. Falls back to creating a Gmail draft addressed to
+  shaye@vergecollective.com.au if Superhuman's tools aren't available.
 
 ## Known limitation: daylight saving time
 
@@ -53,5 +52,5 @@ The trigger's cron schedule is defined in UTC (the underlying scheduler
 does not support IANA timezones). It's set assuming AEST (UTC+10). During
 AEDT (UTC+11, roughly early October–early April), the report will actually
 land at 7am Sydney time instead of 6am until the cron offset is manually
-shifted. Two reminder triggers are scheduled for the DST transition dates
-to prompt that one-hour adjustment.
+shifted (subtract one hour from the UTC hour, e.g. `0 20 * * 1-4` becomes
+`0 19 * * 1-4`, around the first Sunday of October and April each year).

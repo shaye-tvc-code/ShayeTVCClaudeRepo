@@ -88,8 +88,15 @@ Formatting conventions:
 
 ## Delivery mechanism
 
-1. If a send-capable email connector is enabled for the account (e.g.
-   Superhuman Mail's send/compose action), send the email directly.
-2. Otherwise, create a Gmail draft (`mcp__Gmail__create_draft`) addressed to
-   shaye@vergecollective.com.au with the same subject and body, and note in
-   the session output that it was drafted, not sent, and why.
+1. **Primary: Superhuman Mail.** Call `create_or_update_draft` with
+   `type: "new"`, `to: ["shaye@vergecollective.com.au"]`, the subject line
+   from above, and `body` set to the exact HTML-formatted report (use the
+   `body` field, not `instructions`, so the AI writer doesn't rewrite the
+   tone/formatting — dividers, bold headers, and emoji placement must be
+   exact). Then call `send_draft` with the returned `draft_id` to actually
+   send it.
+2. **Fallback: Gmail draft.** If Superhuman Mail's tools aren't available
+   in the session, create a Gmail draft (`mcp__Gmail__create_draft`)
+   addressed to shaye@vergecollective.com.au with the same subject and
+   body, and note in the session output that it was drafted, not sent,
+   and why (Gmail's connector here has no send action).
