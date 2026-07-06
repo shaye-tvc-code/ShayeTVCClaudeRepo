@@ -21,10 +21,14 @@ recently completed trading day, regardless of which trigger fired.
 - **Net sales**: from Shopify, via `run-analytics-query` (ShopifyQL) or the
   Shopify Admin API analytics/orders data. Use `net_sales` semantics
   (gross sales minus discounts, returns, and refunds), not gross sales.
-- **Monthly target**: Shopify shop metafield `custom.monthly_sales_target`
-  (numeric, store currency). If missing or zero, state this explicitly in
-  the email instead of fabricating a number, and skip Steps 1–3's
-  target-relative math.
+- **Monthly target**: `config/monthly-sales-targets.json` in this repo
+  (shaye-tvc-code/ShayeTVCClaudeRepo), read via the GitHub MCP tools
+  (`get_file_contents`). Keyed by `YYYY-MM`, values in the currency given
+  by the file's `currency` field. If there's no entry for the current
+  month, state this explicitly in the email instead of fabricating a
+  number, and skip Steps 1–3's target-relative math. New months' targets
+  get added by the user telling Claude the number in chat, which commits
+  it to this file — there is no Shopify metafield involved.
 - **Top products / AOV / inventory**: from Shopify analytics, orders, and
   `get-inventory-levels`.
 

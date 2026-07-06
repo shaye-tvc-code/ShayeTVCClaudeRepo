@@ -36,11 +36,10 @@ match.
 - **Shopify connector must stay authorized.** If it expires, the trigger's
   run will fail to pull sales data. Re-authorize via claude.ai connector
   settings.
-- **Monthly sales target**: stored as a Shopify shop metafield,
-  namespace `custom`, key `monthly_sales_target` (numeric, in the store's
-  currency). Update this once at the start of each month in
-  Shopify Admin → Settings → Custom data → Shop metafields. If it's
-  missing, the report will call that out instead of guessing.
+- **Monthly sales target**: stored in [`config/monthly-sales-targets.json`](config/monthly-sales-targets.json)
+  in this repo, keyed by `YYYY-MM`. Tell Claude the number for a new month
+  and it'll commit the update to that file. If the current month has no
+  entry, the report calls that out instead of guessing.
 - **Email delivery**: sends via Superhuman Mail (`create_or_update_draft` +
   `send_draft`), which must stay enabled for the session/chat the trigger
   runs in. Falls back to creating a Gmail draft addressed to
