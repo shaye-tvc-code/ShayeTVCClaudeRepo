@@ -10,7 +10,7 @@ or ask Claude to do it).
 
 | Trigger | Cron (local, Australia/Sydney) | Reporting window for Step 4 |
 |---|---|---|
-| Weekday | Tue, Wed, Thu, Fri @ 6:00am | Single prior calendar day |
+| Weekday | Tue, Wed, Thu, Fri @ 6:00am | Week-to-date (since Monday) and month-to-date trends |
 | Weekly  | Mon @ 6:00am | Full preceding week (Monday–Sunday), framed as a weekly recap |
 
 Cumulative figures (Steps 1–3) always cover month-to-date through the most
@@ -62,28 +62,31 @@ in the same email.
 
 ## Step 4 — 🔍 Emerging Patterns
 
-Over the reporting window (prior day on weekday runs, or the full
-Monday–Sunday week just completed on the weekly Monday run):
-- Top selling products (by net sales and/or units).
+The window depends on which trigger fired:
+- **Weekday runs**: week-to-date (since the most recent Monday, through
+  yesterday) and month-to-date. A single day's numbers are noisy and not
+  very meaningful on their own — report trends over WTD and MTD instead
+  of yesterday in isolation.
+- **Weekly run (Monday)**: the full Monday–Sunday week just completed,
+  framed as a weekly recap ("this week", "the week of [date range]") —
+  not single-day language. State the week's own Mon–Sun date range
+  explicitly; it may differ from the month-to-date range used in the
+  email subject if the week spans a month boundary.
+
+For either window, cover:
+- Top selling products (by net sales and/or units) over the window.
 - Flag any product that is normally a top seller (appears in the trailing
   30-day or prior-month top sellers list) but is out of stock — check via
   `get-inventory-levels`.
 - Note if a usually-top-selling product has slowed (lower rank or velocity
   vs. its trailing baseline).
 - Compare average order value (AOV = net sales / order count) for the
-  window against a trailing baseline (e.g. trailing 30 days or
-  month-to-date average) and comment on whether it's up, down, or flat.
-
-On the weekly run, write this section as a weekly recap ("this week", "the
-week of [date range]") rather than single-day language, and state the
-week's own Mon–Sun date range explicitly — it may differ from the
-month-to-date range used in the email subject if the week spans a month
-boundary.
+  window against a trailing baseline (e.g. trailing 30 days) and comment
+  on whether it's up, down, or flat.
 
 ## Output: email
 
-Send (or draft, if no send-capable email connector is available) to
-**shaye@vergecollective.com.au**.
+Send (or draft, if no send-capable email connector is available).
 
 Formatting conventions:
 - Open with: `⭐ Stackers eComm Sales run rate – [date range]` (date range =
@@ -99,17 +102,24 @@ Formatting conventions:
   sign-off to reflect the day's actual outcome (e.g. more subdued/rallying
   if behind pace, more celebratory if ahead).
 
+## Recipients
+
+- **All runs**: to `shaye@vergecollective.com.au`.
+- **Weekly run only**: also cc `Colin From Accounts <colin@vergecollective.com.au>`.
+  The weekday runs stay Shaye-only.
+
 ## Delivery mechanism
 
 1. **Primary: Superhuman Mail.** Call `create_or_update_draft` with
-   `type: "new"`, `to: ["shaye@vergecollective.com.au"]`, the subject line
-   from above, and `body` set to the exact HTML-formatted report (use the
+   `type: "new"`, the recipients from above (`to` always includes Shaye;
+   add `cc` for Colin on the weekly run only), the subject line from
+   above, and `body` set to the exact HTML-formatted report (use the
    `body` field, not `instructions`, so the AI writer doesn't rewrite the
    tone/formatting — dividers, bold headers, and emoji placement must be
    exact). Then call `send_draft` with the returned `draft_id` to actually
    send it.
 2. **Fallback: Gmail draft.** If Superhuman Mail's tools aren't available
-   in the session, create a Gmail draft (`mcp__Gmail__create_draft`)
-   addressed to shaye@vergecollective.com.au with the same subject and
-   body, and note in the session output that it was drafted, not sent,
-   and why (Gmail's connector here has no send action).
+   in the session, create a Gmail draft (`mcp__Gmail__create_draft`) to
+   the same recipients as above with the same subject and body, and note
+   in the session output that it was drafted, not sent, and why (Gmail's
+   connector here has no send action).
