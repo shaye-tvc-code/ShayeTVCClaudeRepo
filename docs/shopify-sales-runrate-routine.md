@@ -11,10 +11,11 @@ or ask Claude to do it).
 | Trigger | Cron (local, Australia/Sydney) | Reporting window for Step 4 |
 |---|---|---|
 | Weekday | Tue, Wed, Thu, Fri @ 6:00am | Single prior calendar day |
-| Monday | Mon @ 6:00am | Saturday + Sunday combined |
+| Weekly  | Mon @ 6:00am | Full preceding week (Monday–Sunday), framed as a weekly recap |
 
 Cumulative figures (Steps 1–3) always cover month-to-date through the most
-recently completed trading day, regardless of which trigger fired.
+recently completed trading day, regardless of which trigger fired — for the
+weekly run this is the Sunday just completed.
 
 ## Inputs
 
@@ -61,7 +62,8 @@ in the same email.
 
 ## Step 4 — 🔍 Emerging Patterns
 
-Over the reporting window (prior day, or Sat+Sun on Mondays):
+Over the reporting window (prior day on weekday runs, or the full
+Monday–Sunday week just completed on the weekly Monday run):
 - Top selling products (by net sales and/or units).
 - Flag any product that is normally a top seller (appears in the trailing
   30-day or prior-month top sellers list) but is out of stock — check via
@@ -72,6 +74,12 @@ Over the reporting window (prior day, or Sat+Sun on Mondays):
   window against a trailing baseline (e.g. trailing 30 days or
   month-to-date average) and comment on whether it's up, down, or flat.
 
+On the weekly run, write this section as a weekly recap ("this week", "the
+week of [date range]") rather than single-day language, and state the
+week's own Mon–Sun date range explicitly — it may differ from the
+month-to-date range used in the email subject if the week spans a month
+boundary.
+
 ## Output: email
 
 Send (or draft, if no send-capable email connector is available) to
@@ -79,7 +87,8 @@ Send (or draft, if no send-capable email connector is available) to
 
 Formatting conventions:
 - Open with: `⭐ Stackers eComm Sales run rate – [date range]` (date range =
-  the month-to-date range covered, e.g. "1–15 July 2026").
+  the month-to-date range covered, e.g. "1–15 July 2026" — this convention
+  is the same across all trigger variants).
 - `---` dividers between each of the four sections.
 - **Bold headers** for each section, each prefixed with its emoji
   (📈 Run Rate, 🏆 target-beat section, ⚠️ target-shortfall section,
