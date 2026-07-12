@@ -67,11 +67,14 @@ The window depends on which trigger fired:
   yesterday) and month-to-date. A single day's numbers are noisy and not
   very meaningful on their own — report trends over WTD and MTD instead
   of yesterday in isolation.
-- **Weekly run (Monday)**: the full Monday–Sunday week just completed,
-  framed as a weekly recap ("this week", "the week of [date range]") —
-  not single-day language. State the week's own Mon–Sun date range
-  explicitly; it may differ from the month-to-date range used in the
-  email subject if the week spans a month boundary.
+- **Weekly run (Monday)**: "this week" means the Monday–Sunday period
+  immediately preceding the run — i.e. last Monday through this past
+  Sunday, inclusive. Worked example: for the report delivered Monday 13
+  July, "this week" = Monday 6 July through Sunday 12 July (inclusive).
+  Frame the section as a weekly recap ("this week", "the week of [date
+  range]") — not single-day language. State the week's own Mon–Sun date
+  range explicitly; it may differ from the month-to-date range used in
+  the email subject if the week spans a month boundary.
 
 For either window, cover:
 - Top selling products (by net sales and/or units) over the window.
