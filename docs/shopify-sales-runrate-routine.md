@@ -108,15 +108,16 @@ Formatting conventions:
 ## Recipients
 
 - **All runs**: to `shaye@vergecollective.com.au`.
-- **Weekly run only**: also cc `Colin From Accounts <colin@vergecollective.com.au>`.
+- **Weekly run only**: also cc `Colin From Accounts <colin@vergecollective.com.au>`
+  and `Jesse <jesse.o@oozestudios.com.au>`.
   The weekday runs stay Shaye-only.
 
 ## Delivery mechanism
 
 1. **Primary: Superhuman Mail.** Call `create_or_update_draft` with
    `type: "new"`, the recipients from above (`to` always includes Shaye;
-   add `cc` for Colin on the weekly run only), the subject line from
-   above, and `body` set to the exact HTML-formatted report (use the
+   add `cc` for Colin and Jesse on the weekly run only), the subject line
+   from above, and `body` set to the exact HTML-formatted report (use the
    `body` field, not `instructions`, so the AI writer doesn't rewrite the
    tone/formatting — dividers, bold headers, and emoji placement must be
    exact). Then call `send_draft` with the returned `draft_id` to actually
