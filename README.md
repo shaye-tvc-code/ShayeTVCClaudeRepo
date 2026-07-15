@@ -53,3 +53,63 @@ AEDT (UTC+11, roughly early October–early April), the report will actually
 land at 7am Sydney time instead of 6am until the cron offset is manually
 shifted (subtract one hour from the UTC hour, e.g. `0 20 * * 1-4` becomes
 `0 19 * * 1-4`, around the first Sunday of October and April each year).
+
+---
+
+# BTK 3PL Weekly Invoice Automation
+
+Automated weekly processing of the BTK Logistics 3PL invoice for Stackers
+Australia (The Verge Collective, ABN 56 691 572 817).
+
+## What it does
+
+Each week, BTK Logistics emails a tax invoice and a supporting Excel
+workbook to the Gmail inbox. On trigger, a scheduled Claude session:
+
+1. Fetches both attachments from Gmail.
+2. Parses and validates the invoice data against the workbook, tying every
+   line back to the invoice subtotal (see
+   [`docs/btk-3pl-invoice-automation-routine.md`](docs/btk-3pl-invoice-automation-routine.md)
+   for the full spec, including the eComm/wholesale split logic and rate
+   card checks).
+3. Builds a Xero-format journal spreadsheet (`.xlsx`).
+4. Updates the running `BTK_Weekly_Charge_Tracker.xlsx`.
+5. Sends two emails: one to the bookkeeping/Dext pipeline with the source
+   documents and journal attached, and one management summary to finance
+   with fulfilment metrics and any rate card flags.
+
+Any invoice line that doesn't tie to the workbook, or that deviates from
+the rate card, is flagged (orange for review, red for a confirmed billing
+error) rather than silently corrected — see Step 8 of the routine doc for
+the full error-handling table.
+
+## How it's implemented
+
+This repo holds the **spec**, not application code. The actual work runs
+as a scheduled Claude Code trigger (a "Routine") that, on each firing,
+spins up a fresh Claude session with the full instructions in
+[`docs/btk-3pl-invoice-automation-routine.md`](docs/btk-3pl-invoice-automation-routine.md)
+and live access to the Gmail connector and file tooling needed to build
+the journal and tracker spreadsheets. There's no separate server or script
+to deploy — updating the behavior means editing that doc and updating the
+trigger's prompt to match.
+
+## Prerequisites / setup
+
+- **Gmail connector must stay authorized.** If it expires, the trigger
+  can't fetch the invoice email or its attachments.
+- **Rate cards**: stored in
+  [`config/btk-rate-cards.json`](config/btk-rate-cards.json), keyed by
+  effective date (pre- and post-1 July 2026). Update this file when BTK's
+  pricing changes rather than editing the routine doc.
+- **Wholesale customer list**: stored in
+  [`config/btk-wholesale-customers.json`](config/btk-wholesale-customers.json).
+  This is a secondary, informational heuristic only — the authoritative
+  B2B identifier is always the `ADMIN FEE - B2B` flag in the workbook
+  itself. Expand this list as new wholesale accounts are encountered.
+- **Local file paths**: the routine reads/writes
+  `~/stackers/btk/journals/` and `~/stackers/btk/BTK_Weekly_Charge_Tracker.xlsx`
+  in the environment the trigger runs in — these are not part of this
+  repo.
+- **Email delivery**: sent via the Gmail API as MIME multipart messages
+  with the PDF, workbook, and journal attached.

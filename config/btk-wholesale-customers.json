@@ -1,0 +1,24 @@
+{
+  "note": "Secondary heuristic only. The authoritative B2B identifier is the literal string 'ADMIN FEE - B2B' in column E of the Sale Orders tab of the BTK workbook. This list is informational context for spotting new wholesale accounts and sanity-checking the workbook's classification -- do not use it to override the workbook's own ADMIN FEE - B2B flag.",
+  "named_customers": [
+    "Howards Storage",
+    "My Home Storage Pty Ltd",
+    "Storage Solutions",
+    "Homemaker The Valley",
+    "Koala",
+    "Hsw Online",
+    "Hsw",
+    "Wangaratta Jewellers",
+    "South Wharf",
+    "Kotara",
+    "TJX",
+    "HomeSense",
+    "Winners"
+  ],
+  "reference_patterns": [
+    { "type": "prefix", "value": "PO", "description": "Any delivery reference prefixed 'PO' followed by digits" },
+    { "type": "contains", "value": "B2B ORDER" },
+    { "type": "contains", "value": "DC ORDER" }
+  ],
+  "instructions": "Expand named_customers as new wholesale accounts are encountered in future invoices."
+}

@@ -1,0 +1,486 @@
+# Routine: BTK 3PL Weekly Invoice Automation
+
+This is the full spec executed by the scheduled Claude trigger. It is also
+the source of truth for the trigger's prompt — if you change behavior here,
+update the trigger's prompt to match (`mcp__Claude_Code_Remote__update_trigger`
+doesn't support editing the prompt directly; delete and recreate the trigger,
+or ask Claude to do it).
+
+Entity: Stackers Australia (The Verge Collective), ABN 56 691 572 817.
+
+## Trigger
+
+Each week BTK Logistics emails a tax invoice and a supporting Excel workbook
+to the Gmail inbox. On firing, run the full pipeline below in one pass —
+fetch, parse, validate, build the Xero journal, update the tracker, and send
+both emails. Don't skip steps or pause for confirmation mid-run unless a
+critical data error is found that can't be resolved programmatically (see
+[Error handling](#step-8--error-handling)).
+
+## Gmail search
+
+Search the authenticated inbox for the most recent unread email from BTK
+Logistics matching:
+
+```
+from:(btk) subject:(invoice OR "tax invoice") newer_than:8d
+```
+
+From that email, download two attachments:
+
+- The **PDF invoice** — filename contains `INV-` or `Invoice`
+- The **Excel workbook** — filename ends in `.xlsx` and contains a BTK
+  reference number (e.g. `invoice_2063_summary`)
+
+If either attachment is missing, send a plain-text alert to
+`finance@stackersau.com.au` and stop.
+
+## File locations
+
+```
+JOURNAL_OUTPUT_DIR  = ~/stackers/btk/journals/
+TRACKER_PATH        = ~/stackers/btk/BTK_Weekly_Charge_Tracker.xlsx
+JOURNAL_FILENAME    = Xero_Journal_{INV_REF}_Stackers_WE_{WE_DATE}.xlsx
+```
+
+## Step 1 — Parse the Excel workbook
+
+Open the workbook with `openpyxl`. Sheet names may vary slightly week to
+week — match by closest string:
+
+| Sheet | Purpose |
+|---|---|
+| Cover | Invoice totals summary |
+| Warehouse Summary | Daily breakdown of all WH charges |
+| Sale Orders | Per-order detail and charge descriptions |
+| Consignments and Manifests | Per-consignment freight (connote level) |
+| Consignment Data | Consignment metadata |
+| Storage Summary | Authoritative storage charges |
+| Purchase Orders | Inbound PO charges (present some weeks) |
+
+### 1a — Invoice metadata (from the PDF)
+
+Parse with `pdfplumber` or `pypdf`:
+
+- Invoice number (e.g. `INV-0981`)
+- BTK reference number (e.g. `2063`)
+- Week ending date (e.g. `12/07/26` → format as `12Jul2026`)
+- Invoice date
+- All line items with their amounts
+- Subtotal ex GST — this is the **cover total**; every downstream check
+  must tie to this
+
+### 1b — Storage (from Storage Summary tab)
+
+- Row 4 onward: Description = pallet count or label, Charge = dollar amount
+- Pallet storage = row where description is a number (the pallet count)
+- B2B floor storage = row where description contains `FLOOR STORAGE`
+- Sum all rows → must equal the Cover sheet storage line
+
+### 1c — Orders and items (from Sale Orders tab)
+
+- Read all rows where column B (index 1) is a numeric Sale Order ID
+- **B2B orders** = rows where column E (index 4) contains the string
+  `ADMIN FEE - B2B` — this is the sole authoritative B2B identifier (see
+  [`config/btk-wholesale-customers.json`](../config/btk-wholesale-customers.json)
+  for a secondary, informational customer-name heuristic — never let it
+  override this flag)
+- **eComm orders** = all other rows
+- Record: total orders, B2B order count, eComm order count
+- For each B2B order, extract item count using regex `Unit - \((\d+) @`
+  from the charge description
+- Sum all item counts: total items, B2B items, eComm items = total − B2B
+
+### 1d — Wholesale freight (from Consignments and Manifests tab)
+
+- For each B2B order reference (column B / index 1), find the matching
+  consignment row
+- The freight charge is in the **last non-null column** of that row (column
+  count varies week to week — do not assume a fixed index)
+- Sum all B2B consignment charges → `ws_freight`
+- eComm freight = PDF freight line − ws_freight
+
+### 1e — P&P and packaging pools (from Warehouse Summary tab)
+
+Locate rows by their label in column A (index 0).
+
+**P&P pool** (sum these rows):
+- `Outbound Order` — flat per-order fees
+- `Item Outbound` — tiered per-item fees
+- `Labelling Fees` — outbound carrier labels
+
+**Packaging pool** (sum these rows):
+- `Paper Filler - Per Packing` and all variants
+- All box/carton SKU rows (e.g. `260X190X22`, `270X195X165`,
+  `370X260X150`, `265 x 195 x 265mm`, `Large Carton`, `380X270X180`, etc.)
+- `A5 Invoice Enclosed Envelope`
+- `Consumables - Packing Slip`
+- `Fragile Label`
+- `Pallet Wrapping` / `Pallet Wrap`
+- `Pick and despatch rate pallet` / `Despatch Rate per Pallet`
+- `Standard Pallet Supply`
+
+**B2B admin fee**: row labelled `ADMIN FEE - B2B` — sum all numeric values.
+
+**Verification**: P&P pool + Packaging pool + B2B admin fee must equal the
+PDF Pick and Pack line (±$0.01 tolerance). If there is a Purchase Orders
+tab, its charges may be bundled into the P&P invoice line — add them to the
+pool if needed to reconcile.
+
+**Urgent Order Charge**: a row with this label may appear in WH Summary.
+Do not include it in the P&P pool unless it's needed to make the P&P line
+reconcile. In recent weeks this row appears in WH but is not billed —
+treat it as informational only if the pool already ties without it.
+
+### 1f — Splits
+
+- **P&P split**: by item count ratio. eComm P&P = pool × (eComm items ÷
+  total items). WS P&P = pool − eComm P&P. Both rounded to 2 decimals.
+- **Packaging split**: by order count ratio. eComm Pkg = pool × (eComm
+  orders ÷ total orders). WS Pkg = pool − eComm Pkg. Both rounded to 2
+  decimals.
+
+### 1g — Other charges from the PDF
+
+Scan all PDF invoice lines for items not covered by the standard WH
+categories:
+
+| PDF line contains | Journal category / channel | Flag |
+|---|---|---|
+| `Underpaid postage` / `Undercharged postage` | Freight Out / eComm | orange |
+| `Labour` / `Stocktake` / `Adhoc labour` | Other 3PL Costs / no channel | verify rate vs. rate card |
+| `Rubbish removal` / `Dunnage removal` | Other 3PL Costs / no channel | orange |
+| `Phone line` | Other 3PL Costs / no channel | — |
+| `Chep` / `Loscam` / `Delay days` | Other 3PL Costs / no channel | orange; verify $0.23/pallet/day (post-July) |
+| `Fragile label` (separate PDF line, not in WH) | Packaging / eComm | — |
+| Express shipping surcharge | Freight Out / Wholesale | flag if no rate card basis |
+| Inbound Order fee (Purchase Orders section of WH) | Other 3PL Costs / no channel | — |
+| Inbound container / putaway / pallet charges | Inbound / Receiving section | see Step 3 |
+
+## Step 2 — Rate card verification
+
+Determine which rate card applies based on invoice date: **before 1 July
+2026** uses the pre-July rates; **1 July 2026 onward** uses the new card.
+Both cards live in
+[`config/btk-rate-cards.json`](../config/btk-rate-cards.json) — read that
+file rather than hardcoding rates in code, so future rate changes are a
+one-line config edit rather than a spec rewrite.
+
+For each line, compare the implied rate to the rate card:
+
+- Storage: total charge ÷ pallet count — flag if not within $0.01
+- Admin fee: flag if not within $0.01 (post-July = $52.375, single line or
+  split WMS + admin, both correct)
+- Order fee: WH Outbound Order total ÷ total orders — flag if not within
+  $0.01
+- Labour: rate stated on PDF — flag if not $60.00 (pre-July) or $62.85
+  (post-July)
+- Chep/Loscam: rate stated on PDF — flag if not $0.22/$0.23 per
+  pallet/day
+- B2B admin: rate per instance — flag if not $3.00/$3.1425
+
+Use **orange flag rows** for deviations that need review. Use **red flag
+rows** for confirmed errors or charges with no rate card basis.
+
+## Step 3 — Build the Xero journal (.xlsx)
+
+Use `openpyxl`. Write hardcoded float values (not formulas) for all
+amounts. Format unit prices to 4 decimal places (`$#,##0.0000`), amounts to
+2 decimal places (`$#,##0.00`).
+
+### Colour scheme
+
+```python
+NAVY      = "1F3864"   # header background
+NAVY2     = "2E4A7A"   # summary strip
+L_BLUE    = "DDEEFF"   # eComm rows
+L_GREEN   = "DDFFDD"   # wholesale rows
+L_GREY    = "F2F2F2"   # storage / admin rows
+L_PURP    = "EDE7F6"   # inbound / receiving rows
+ORANGE    = "FFE5B4"   # flag rows (orange)
+RED_BG    = "FFD0D0"   # flag rows (red/error)
+GREEN_CHK = "E2EFDA"   # verification pass rows
+YELLOW    = "FFFF00"   # totals row
+```
+
+### Sheet structure
+
+- **Row 1**: Dark navy, merged A:I — `{INV_REF} | W.E. {WE_DATE} |
+  Stackers Australia (The Verge Collective) | BTK 3PL Xero Journal`
+- **Row 2**: Navy2, merged A:I — `Invoice #: {PDF_INV_NO} | Period:
+  {period} | Total ex GST: ${total} | Total Orders: {n} | eComm: {n} |
+  Wholesale B2B: {n} | {rate card note if applicable}`
+- **Row 3**: Spacer (height 6)
+- **Row 4**: Column headers (dark navy, white bold): Description | Qty |
+  Unit Price | Account | Tax Rate | CAC | Channel | Amount AUD | Notes /
+  Source
+- **Rows 5+**: Data rows (see below)
+
+### Journal lines, in order
+
+Each line: description, qty, unit_price, account, `"GST on Expenses"`,
+`""`, channel, amount, notes.
+
+1. **Pallet Storage** — `3PL Storage` / no channel / L_GREY
+2. **B2B Floor Storage** (if present) — `3PL Storage` / no channel / L_GREY
+3. **Invoice Administration Fee** — `Other 3PL Costs` / no channel / L_GREY
+4. **Outbound Freight — eComm** — `Freight Out` / eComm / L_BLUE
+5. **Outbound Freight — Wholesale** (if B2B orders exist) — `Freight Out` /
+   Wholesale / L_GREEN
+6. **Express Shipping Surcharge** (if on PDF) — `Freight Out` / Wholesale /
+   L_GREEN + orange flag
+7. **Pick + Pack — eComm** — `Pick + Pack` / eComm / L_BLUE — qty = eComm
+   items
+8. **Pick + Pack — Wholesale** (if B2B) — `Pick + Pack` / Wholesale /
+   L_GREEN — qty = B2B items
+9. **Packaging — eComm** — `Packaging` / eComm / L_BLUE — qty = eComm
+   orders
+10. **Packaging — Wholesale** (if B2B) — `Packaging` / Wholesale / L_GREEN
+    — qty = B2B orders
+11. **Inbound / Receiving lines** (if present, each as a separate row) —
+    `Other 3PL Costs` / no channel / L_PURP: Container Unload; Putaway
+    (pallets — may include inbound order fee and inbound labelling);
+    Pallet (empty pallet purchase); Cartage & Dehire
+12. **B2B Admin Fee** — `Other 3PL Costs` / Wholesale / L_GREEN
+13. **Inbound Order Fee** (if present, not bundled into above) — `Other
+    3PL Costs` / no channel / L_GREY
+14. **Labour / Stocktake** lines (one row per distinct PDF line item) —
+    `Other 3PL Costs` / no channel / L_GREY
+15. **Underpaid Postage** (if present) — `Freight Out` / eComm / ORANGE +
+    orange flag
+16. **Rubbish Removal** (if present) — `Other 3PL Costs` / no channel /
+    ORANGE + orange flag
+17. **Phone Line** (if present) — `Other 3PL Costs` / no channel / L_GREY
+18. **Chep/Loscam Delay Days** (if present) — `Other 3PL Costs` / no
+    channel / ORANGE + orange flag
+19. **Fragile Labels ad hoc** (if on PDF only) — `Packaging` / eComm /
+    L_GREY
+
+After all data rows:
+
+- Green verification row: storage check result
+- Green info row: Urgent Order Charge note, if applicable
+- **Totals row** (yellow): `TOTAL` right-aligned in col A, hardcoded sum in
+  col H
+- **Verification row** (yellow): text cell showing `✓ TIES — $X,XXX.XX` or
+  `⚠ DIFFERENCE: $X.XX`
+
+### Final check
+
+Sum all Amount AUD cells in the journal. Compare to the PDF subtotal ex
+GST. If the difference is > $0.01, raise an exception — do not send the
+email. Log the discrepancy and stop.
+
+### Formatting
+
+Column widths: A=56, B=8, C=13, D=20, E=20, F=7, G=12, H=14, I=65. Freeze
+panes at A5.
+
+## Step 4 — Update the weekly charge tracker
+
+Load `BTK_Weekly_Charge_Tracker.xlsx` with openpyxl.
+
+### Column layout
+
+- Column A = Line Description
+- Separator columns (width 1.2, grey fill) at B, F, J, N, … (every 4th
+  column after A)
+- Each week occupies 3 columns: Qty | Unit Price | Amount AUD
+- **Most recent week always in columns C, D, E**
+- Historical weeks follow to the right, oldest last
+
+### To insert a new week
+
+1. Insert 4 new columns at position 3 (after column B)
+2. Set widths: C=8, D=12, E=12, F=1.2
+3. Fill separator column F with grey (`D9D9D9`)
+4. Write week header in C4:E4 (merged): `{INV_REF} | W.E. {WE_DATE}`
+5. Write sub-headers in row 5: Qty / Unit Price / Amount AUD
+6. Write data values for the new week in column C (qty), D (unit price), E
+   (amount)
+7. Update the TOTAL row (last data row) with the new week's hardcoded
+   cover total in column E
+
+### Row mapping (match by description in column A)
+
+Write the new week's values into these rows:
+
+| Description | Qty | Unit Price | Amount |
+|---|---|---|---|
+| Pallet Storage | pallet count | rate | amount |
+| B2B Floor Storage | unit count | rate | amount (blank if absent) |
+| Invoice Administration Fee | 1 | rate | amount |
+| Outbound Freight — eComm | eComm consignment count | avg | amount |
+| Outbound Freight — Wholesale | B2B consignment count | avg | amount (blank if absent) |
+| Express Shipping Surcharge — TJX | 1 | amount | amount (blank if absent) |
+| Pick + Pack — eComm | eComm items | avg | amount |
+| Pick + Pack — Wholesale | B2B items | avg | amount (blank if absent) |
+| Packaging — eComm | eComm orders | avg | amount |
+| Packaging — Wholesale | B2B orders | avg | amount (blank if absent) |
+| Container Unload | 1 | amount | amount (blank if absent) |
+| Putaway | pallet count | avg | amount (blank if absent) |
+| Pallet | 1 | amount | amount (blank if absent) |
+| Cartage & Dehire | count | avg | amount (blank if absent) |
+| B2B Admin Fee | order count | rate | amount (blank if absent) |
+| Inbound Order Fee | 1 | amount | amount (blank if absent) |
+| Chep Pallet Delay Days | pallet count | avg | amount (blank if absent) |
+| Underpaid / Undercharged Postage | 1 | amount | amount (blank if absent) |
+| Rubbish Removal | 1 | amount | amount (blank if absent) |
+| Phone Line | 1 | amount | amount (blank if absent) |
+| Fragile Labels (ad hoc) | count | 0.20/0.42 | amount (blank if absent) |
+| Labour — Ad Hoc | total hrs | rate | amount (blank if absent) |
+
+For blank cells: leave the cell empty (`None`). Apply the same row
+background colour as neighbouring weeks for that row. Save the tracker to
+the same path.
+
+## Step 5 — Compile weekly insights
+
+### eComm metrics
+
+- Pick + Pack cost for the week: `pp_ecomm`
+- Pick + Pack average per order: `pp_ecomm ÷ ecomm_orders`
+- Average items per eComm order: `ecomm_items ÷ ecomm_orders`
+- Packaging cost for the week: `pkg_ecomm`
+- Packaging average per order: `pkg_ecomm ÷ ecomm_orders`
+- Postage (freight) cost for the week: `ecomm_freight`
+- Postage average per order: `ecomm_freight ÷ ecomm_orders`
+- Average weight per order: from Consignment Data tab — sum all eComm
+  consignment weights ÷ eComm order count. If weight data is unavailable,
+  write "N/A"
+- eComm orders fulfilled: `ecomm_orders`
+
+### B2B metrics (if any B2B orders this week)
+
+- Pick + Pack cost for the week: `pp_ws`
+- Pick + Pack average per order: `pp_ws ÷ b2b_orders`
+- Average items per B2B order: `b2b_items ÷ b2b_orders`
+- Packaging cost for the week: `pkg_ws`
+- Packaging average per order: `pkg_ws ÷ b2b_orders`
+- Postage (freight) cost for the week: `ws_freight`
+- Postage average per order: `ws_freight ÷ b2b_orders`
+- Average weight per order: same method as eComm, B2B consignments only
+- B2B orders fulfilled: `b2b_orders`
+
+### Rate card flags
+
+Collect all flag rows generated during Step 2. Summarise each flagged
+item, the charged amount, expected amount, difference, and whether it's an
+orange (review) or red (error) flag.
+
+## Step 6 — Send email 1: bookkeeping / Dext pipeline
+
+- **To**: `tvcollective@dext.cc`, `tracey@jog.com.au`
+- **CC**: `finance@stackersau.com.au`
+- **Subject**: `BTK 3PL Invoice — {PDF_INV_NO} | W.E. {WE_DATE} | Stackers
+  Australia`
+- **Attachments**: PDF invoice, Excel workbook (originals), Xero Journal
+  xlsx
+
+Body (plain text or simple HTML):
+
+```
+Hi,
+
+Please find attached the BTK Logistics 3PL invoice and supporting documents
+for Stackers Australia, week ending {WE_DATE}.
+
+Invoice #:      {PDF_INV_NO}
+Period:         {period}
+Total ex GST:   ${cover_total}
+Total inc GST:  ${cover_total_inc_gst}
+Due date:       {due_date}
+
+The Xero journal is attached. All lines have been verified against the BTK
+supporting workbook and tie to the invoice subtotal.
+
+{IF flags exist:}
+⚠ Rate card flags this week:
+{list each flag as: - [LINE]: charged ${x}, rate card ${y}, difference ${z}}
+
+{IF no flags:}
+✓ All charges verified against rate card — no discrepancies.
+
+Regards,
+Stackers Finance Automation
+```
+
+If any red (confirmed error) flag exists, prefix the subject with `⚠
+ACTION REQUIRED — `.
+
+## Step 7 — Send email 2: finance summary
+
+- **To**: `finance@stackersau.com.au`
+- **Subject**: `BTK 3PL Weekly Summary — W.E. {WE_DATE} | ${cover_total} ex
+  GST`
+- **Attachments**: updated `BTK_Weekly_Charge_Tracker.xlsx`
+
+Body (HTML): a summary with an eComm fulfilment table, a B2B/wholesale
+fulfilment table (only if `b2b_orders > 0`), a rate card check section
+(clean pass message, or a flag table if any flags exist), an "Other
+Notable Items" bullet list for irregular charges (labour, postage
+adjustments, inbound, Chep hire, rubbish removal, etc.), and a storage
+section reporting pallets on hand and the change vs. the prior week (plus
+B2B floor storage unit count, if present). Close with a footer noting the
+summary was generated automatically from the BTK invoice and should be
+verified against source documents before posting to Xero.
+
+## Step 8 — Error handling
+
+| Condition | Action |
+|---|---|
+| Gmail attachment missing | Email alert to finance@, stop |
+| PDF subtotal not parseable | Email alert, stop |
+| Journal total ≠ PDF subtotal (>$0.01) | Email alert with diff, stop — do not send Dext email |
+| Tracker file not found | Create a new tracker from scratch using current week only, warn in finance email |
+| Rate card flag detected | Include in both emails, do not stop — pay as invoiced |
+| Red flag (billing error) detected | Mark as urgent in subject line of Dext email: prefix `⚠ ACTION REQUIRED —` |
+| B2B weight data unavailable | Write "N/A" in summary table, continue |
+
+## Known data quirks
+
+These are recurring patterns to handle proactively — do not flag as
+errors:
+
+- **Urgent Order Charge** row appears in WH Summary but is often not
+  billed. Check whether the P&P pool ties without it; if yes, skip it and
+  add a green info note in the journal.
+- **Purchase Orders tab** may contain an Inbound Order Fee that is bundled
+  into the P&P invoice line. Include it in the pool reconciliation.
+- **B2B references** are not always obvious from the delivery name. Rely
+  exclusively on `ADMIN FEE - B2B` in column E of Sale Orders as the
+  authoritative B2B identifier.
+- **Storage Summary** is authoritative over WH Summary for storage. If
+  they disagree, use whichever ties to the Cover sheet total and flag the
+  discrepancy.
+- **Consignment & Manifests column count** varies. The freight total is
+  always in the **last non-null column** of the row, not a fixed column
+  index.
+- **Admin fee post-July 2026**: $52.375 may appear as a single line or as
+  two lines ($36.6625 WMS + $15.7125 admin). Both are correct — accept
+  either format.
+- **Item outbound bundling pre-July 2026**: the $1.62 first-item rate is a
+  confirmed bundled rate (pick + label + fragile). Do not flag as
+  overcharge.
+- **Inbound labelling and inbound order fee**: when present, fold into the
+  Putaway journal line if they are ancillary to a container receipt. Break
+  them out as a separate Inbound Order Fee row if they appear without a
+  container receipt.
+- **Wholesale customer identification**: the authoritative signal is
+  always `ADMIN FEE - B2B` in the workbook (see 1c). The named-customer and
+  reference-pattern list in
+  [`config/btk-wholesale-customers.json`](../config/btk-wholesale-customers.json)
+  is informational only, for spotting new accounts — expand it as new
+  wholesale customers are encountered.
+
+## Python dependencies
+
+```
+pip install openpyxl pdfplumber google-api-python-client google-auth-httplib2 google-auth-oauthlib
+```
+
+Optional, for weight extraction from Consignment Data:
+
+```
+pip install pandas
+```
