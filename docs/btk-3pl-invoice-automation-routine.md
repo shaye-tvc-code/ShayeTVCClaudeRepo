@@ -8,25 +8,61 @@ or ask Claude to do it).
 
 Entity: Stackers Australia (The Verge Collective), ABN 56 691 572 817.
 
-## Trigger
+## Trigger and schedule
 
-Each week BTK Logistics emails a tax invoice and a supporting Excel workbook
-to the Gmail inbox. On firing, run the full pipeline below in one pass —
-fetch, parse, validate, build the Xero journal, update the tracker, and send
-both emails. Don't skip steps or pause for confirmation mid-run unless a
-critical data error is found that can't be resolved programmatically (see
-[Error handling](#step-8--error-handling)).
+Fires **every Monday at 2:00pm AEST** (04:00 UTC — see the DST caveat at the
+bottom of this doc's counterpart in the README). BTK's invoice email is
+frequently late (observed arrivals as late as ~5–8pm AEST on a Monday), so
+the trigger doesn't just run once and give up:
 
-## Gmail search
+1. At 2:00pm AEST, search for this week's invoice email (see
+   [Mail search](#mail-search) below).
+2. **If found**: run the full pipeline in one pass — fetch, parse, validate,
+   build the Xero journal, update the tracker, then notify (see
+   [Step 6](#step-6--notify-bookkeeping-the-dext-pipeline) and
+   [Step 7](#step-7--send-email-2-finance-summary)). Don't skip steps or
+   pause for confirmation mid-run unless a critical data error is found
+   that can't be resolved programmatically (see
+   [Error handling](#step-8--error-handling)).
+3. **If not found**: re-check **every hour** (use `send_later` to schedule
+   the next check into the same session, so retry state isn't lost). Give
+   up and email a plain-text heads-up to `finance@stackersau.com.au` if the
+   invoice still hasn't arrived by **5:00pm AEST the following Tuesday**
+   (~27 hours / 27 checks after the first one), then stop until next
+   Monday's firing.
+4. **Idempotency**: before processing, check whether a journal file for
+   this invoice number already exists in `JOURNAL_OUTPUT_DIR` — if so, this
+   invoice has already been handled this week; skip re-processing rather
+   than duplicating work.
 
-Search the authenticated inbox for the most recent unread email from BTK
-Logistics matching:
+## Mail search
+
+**Use Superhuman Mail, not the Gmail connector, for search and attachment
+access.** The Gmail connector available in this environment can list
+attachment filenames but has no tool to download attachment bytes — only
+Superhuman Mail's `get_attachment` can. `finance@stackersau.com.au` is an
+alias that delivers into the same mailbox as the primary Superhuman
+account, so no extra account linking should be needed; if `list_threads`
+turns up nothing, confirm via `list_accounts` that the right account is
+still linked.
+
+The email is a Xero-generated "invoice is due" notification (from
+`messaging-service@post.xero.com`, relayed through a Google Group so it can
+display with `finance@stackersau.com.au` as the apparent sender) with the
+subject always starting `[Stackers Finance] Invoice #INV-`. Since several
+other suppliers' Xero notifications share that `[Stackers Finance]` subject
+prefix, disambiguate on the supplier name too:
 
 ```
-from:(btk) subject:(invoice OR "tax invoice") newer_than:8d
+mcp__Superhuman_Mail__list_threads
+  subject_contains: "BTK Logistics"
+  has_attachment: true
+  start_date: <this week's Monday, 00:00 local>
 ```
 
-From that email, download two attachments:
+From the matching thread's first message, download two attachments via
+`get_attachment` (each returns a `download_url` — fetch it with `curl`,
+these are pre-signed URLs valid for 1 hour and don't need further auth):
 
 - The **PDF invoice** — filename contains `INV-` or `Invoice`
 - The **Excel workbook** — filename ends in `.xlsx` and contains a BTK
@@ -60,7 +96,10 @@ week — match by closest string:
 
 ### 1a — Invoice metadata (from the PDF)
 
-Parse with `pdfplumber` or `pypdf`:
+Parse with `pypdf` (prefer this over `pdfplumber` — `pdfplumber` pulls in
+`cryptography`/`cffi`, which failed to import in testing; `pypdf`'s
+`extract_text()` worked cleanly and was sufficient for this invoice's
+layout):
 
 - Invoice number (e.g. `INV-0981`)
 - BTK reference number (e.g. `2063`)
@@ -368,31 +407,55 @@ Collect all flag rows generated during Step 2. Summarise each flagged
 item, the charged amount, expected amount, difference, and whether it's an
 orange (review) or red (error) flag.
 
-## Step 6 — Send email 1: bookkeeping / Dext pipeline
+## Known limitation: no tool can send attachments
 
-- **To**: `tvcollective@dext.cc`, `tracey@jog.com.au`
-- **CC**: `finance@stackersau.com.au`
-- **Subject**: `BTK 3PL Invoice — {PDF_INV_NO} | W.E. {WE_DATE} | Stackers
-  Australia`
-- **Attachments**: PDF invoice, Excel workbook (originals), Xero Journal
-  xlsx
+As of this writing, nothing in this environment can send an email *with a
+real attachment*: Gmail's `create_draft` accepts an `attachments` field in
+its schema but its own description says attachments aren't actually
+supported yet; Superhuman Mail's `create_or_update_draft` has no
+attachments parameter at all (`send_draft` only sends whatever's already on
+the draft). Since Dext needs actual attached files to ingest a bill (a
+link doesn't work for its OCR pipeline), Steps 6 and 7 below are adjusted
+accordingly: the automation builds the files and gets them to the fixed
+paths below, then sends **one notification email with no attachments**
+telling Shaye what's ready. A human does the final "attach the files and
+hit send" step — a few clicks, not a rewrite of the whole pipeline. If a
+future connector update adds real attachment support to either tool,
+Steps 6/7 should revert to sending both emails directly with attachments
+as originally specified below.
+
+## Step 6 — Notify: bookkeeping / Dext pipeline
+
+Originally specified as a direct send, this is currently a **notification
+only** (see the limitation above) — no attachments are sent.
+
+- **To**: `finance@stackersau.com.au` (send to Shaye, not directly to Dext,
+  since she must attach and forward the real files herself)
+- **Subject**: `BTK 3PL Invoice ready to send — {PDF_INV_NO} | W.E.
+  {WE_DATE} | Stackers Australia`
+- **No attachments** — reference the fixed file paths instead
 
 Body (plain text or simple HTML):
 
 ```
 Hi,
 
-Please find attached the BTK Logistics 3PL invoice and supporting documents
-for Stackers Australia, week ending {WE_DATE}.
+This week's BTK Logistics 3PL invoice has been processed and is ready to
+send to the bookkeeping pipeline. The Xero journal has been verified
+against the BTK supporting workbook and ties to the invoice subtotal — no
+attachments could be sent automatically (known tool limitation, see the
+routine doc), so please attach these three files and forward to
+tvcollective@dext.cc and tracey@jog.com.au (cc finance@stackersau.com.au):
+
+  1. Invoice {PDF_INV_NO}.pdf (original, from the BTK email)
+  2. {the BTK workbook .xlsx} (original, from the BTK email)
+  3. {JOURNAL_OUTPUT_DIR}/Xero_Journal_{INV_REF}_Stackers_WE_{WE_DATE}.xlsx
 
 Invoice #:      {PDF_INV_NO}
 Period:         {period}
 Total ex GST:   ${cover_total}
 Total inc GST:  ${cover_total_inc_gst}
 Due date:       {due_date}
-
-The Xero journal is attached. All lines have been verified against the BTK
-supporting workbook and tie to the invoice subtotal.
 
 {IF flags exist:}
 ⚠ Rate card flags this week:
@@ -413,7 +476,8 @@ ACTION REQUIRED — `.
 - **To**: `finance@stackersau.com.au`
 - **Subject**: `BTK 3PL Weekly Summary — W.E. {WE_DATE} | ${cover_total} ex
   GST`
-- **Attachments**: updated `BTK_Weekly_Charge_Tracker.xlsx`
+- **No attachment** (known tool limitation, see above) — mention that the
+  updated tracker is at `TRACKER_PATH` instead of attaching it
 
 Body (HTML): a summary with an eComm fulfilment table, a B2B/wholesale
 fulfilment table (only if `b2b_orders > 0`), a rate card check section
@@ -425,17 +489,23 @@ B2B floor storage unit count, if present). Close with a footer noting the
 summary was generated automatically from the BTK invoice and should be
 verified against source documents before posting to Xero.
 
+In practice, Steps 6 and 7 can be combined into a single notification email
+rather than two separate sends, since neither carries attachments — use
+judgement, but don't drop any of the content above.
+
 ## Step 8 — Error handling
 
 | Condition | Action |
 |---|---|
-| Gmail attachment missing | Email alert to finance@, stop |
+| Invoice email not found by the Tuesday 5pm AEST cutoff | Email alert to finance@, stop until next Monday |
+| Attachment missing from the invoice email | Email alert to finance@, stop |
 | PDF subtotal not parseable | Email alert, stop |
-| Journal total ≠ PDF subtotal (>$0.01) | Email alert with diff, stop — do not send Dext email |
+| Journal total ≠ PDF subtotal (>$0.01) | Email alert with diff, stop — do not send the bookkeeping notification |
 | Tracker file not found | Create a new tracker from scratch using current week only, warn in finance email |
 | Rate card flag detected | Include in both emails, do not stop — pay as invoiced |
-| Red flag (billing error) detected | Mark as urgent in subject line of Dext email: prefix `⚠ ACTION REQUIRED —` |
+| Red flag (billing error) detected | Mark as urgent in subject line of the bookkeeping notification: prefix `⚠ ACTION REQUIRED —` |
 | B2B weight data unavailable | Write "N/A" in summary table, continue |
+| Journal file for this invoice number already exists | Already processed this week — skip silently, don't re-notify |
 
 ## Known data quirks
 
@@ -473,14 +543,26 @@ errors:
   is informational only, for spotting new accounts — expand it as new
   wholesale customers are encountered.
 
+## Validated against a real invoice
+
+Tested end-to-end against the real INV-0981 / BTK ref 2063 / W.E. 12 Jul
+2026 invoice: parsing, rate card checks, and journal construction produced
+a total that tied exactly to the PDF subtotal ($3,233.30, $0.00
+difference) with no rate card flags, and matched — line for line, amount
+for amount — the journal Shaye had already built by hand for the same
+invoice. One data-quality note from that run, unrelated to this spec's
+logic: the Consignment Data tab can contain an obviously-wrong weight (e.g.
+734kg where 0.734kg was clearly meant), which will skew the Step 5 average
+weight metric. Nothing in this spec asks for outlier correction, so the
+routine doesn't attempt it — just be aware the weight metric can be noisy.
+
 ## Python dependencies
 
 ```
-pip install openpyxl pdfplumber google-api-python-client google-auth-httplib2 google-auth-oauthlib
+pip install openpyxl pypdf
 ```
 
-Optional, for weight extraction from Consignment Data:
-
-```
-pip install pandas
-```
+`openpyxl` with `data_only=True` is sufficient for reading the workbook
+(no `pandas` needed). No Gmail/Google API libraries are needed — mail
+access goes through the Superhuman Mail MCP tools plus `curl` for
+attachment download URLs (see [Mail search](#mail-search)).
