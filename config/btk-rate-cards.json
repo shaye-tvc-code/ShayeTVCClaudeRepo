@@ -1,0 +1,63 @@
+{
+  "currency": "AUD",
+  "cards": {
+    "pre_july_2026": {
+      "effective_before": "2026-07-01",
+      "rates": {
+        "pallet_storage_per_pallet_week": 3.75,
+        "ecomm_order_fee_per_order": 1.00,
+        "b2b_order_fee_per_order": 3.00,
+        "item_outbound_1_to_3": {
+          "bundled_total": 1.62,
+          "pick": 0.92,
+          "label": 0.50,
+          "fragile": 0.20
+        },
+        "item_outbound_4_plus_per_item": 0.40,
+        "labelling_outbound_per_label": 0.50,
+        "despatch_per_pallet": 6.60,
+        "pallet_wrap_per_pallet": 5.50,
+        "receipt_and_putaway_per_pallet": 5.00,
+        "labelling_inbound_per_label": 0.50,
+        "admin_fee_inbound_po": 15.00,
+        "invoice_admin_fee_per_week": 50.00,
+        "labour_per_hour": 60.00,
+        "chep_loscam_per_pallet_day": 0.22,
+        "standard_pallet": 30.00,
+        "dunnage_removal_per_cbm": 69.00
+      }
+    },
+    "post_july_2026": {
+      "effective_from": "2026-07-01",
+      "rates": {
+        "pallet_storage_per_pallet_week": 3.9281,
+        "ecomm_order_fee_per_order": 1.0475,
+        "b2b_order_fee_per_order": 3.1425,
+        "item_outbound_1_to_3": {
+          "per_item": 0.9637,
+          "label_separate": 0.53
+        },
+        "item_outbound_4_plus_per_item": 0.4190,
+        "labelling_outbound_per_label": 0.53,
+        "despatch_per_pallet": 6.9135,
+        "pallet_wrap_per_pallet": 6.5475,
+        "receipt_and_putaway_per_pallet": 5.2375,
+        "labelling_inbound_per_label": 0.53,
+        "admin_fee_inbound_po": 15.7125,
+        "invoice_admin_fee_per_week": {
+          "total": 52.375,
+          "wms_component": 36.6625,
+          "admin_component": 15.7125,
+          "note": "May appear as one combined line or split into WMS + admin lines; both are correct."
+        },
+        "labour_per_hour": 62.85,
+        "chep_loscam_per_pallet_day": 0.23,
+        "standard_pallet": 31.425,
+        "dunnage_removal_per_cbm": 57.6125,
+        "urgent_order_surcharge_per_order": 36.67,
+        "consumables_and_packaging": "cost_plus_10pct"
+      }
+    }
+  },
+  "tolerance_aud": 0.01
+}
