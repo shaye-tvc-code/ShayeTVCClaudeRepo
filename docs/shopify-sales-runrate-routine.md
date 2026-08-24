@@ -29,7 +29,9 @@ weekly run this is the Sunday just completed.
   month, state this explicitly in the email instead of fabricating a
   number, and skip Steps 1–3's target-relative math. New months' targets
   get added by the user telling Claude the number in chat, which commits
-  it to this file — there is no Shopify metafield involved.
+  it to this file — there is no Shopify metafield involved. The file may
+  also have a `stretch_targets` array of `YYYY-MM` keys — see "Stretch
+  targets" below for how this changes Steps 1–3.
 - **Top products / AOV / inventory**: from Shopify analytics, orders, and
   `get-inventory-levels`.
 
@@ -59,6 +61,25 @@ remaining days in the month to still hit the target:
 Only one of Step 2 or Step 3 applies for a given run (whichever the
 forecast supports) — don't include both a "beat" and "fall short" verdict
 in the same email.
+
+## Stretch targets
+
+If the current month's `YYYY-MM` key appears in the config file's
+`stretch_targets` array, the target was set deliberately above a
+realistic level for a reason unrelated to actual sales performance (e.g.
+to justify securing a full stock shipment) — it isn't meant to be hit,
+and framing it as a shortfall would be misleading. When this applies:
+
+- **Step 1**: still report both figures as normal, but label the target
+  itself as a stretch target (e.g. "the $92,000 stretch target") so the
+  "required to date" figure isn't misread as a realistic pace
+  expectation.
+- **Steps 2–3**: skip the shortfall framing entirely — don't report a
+  shortfall percentage or a "required daily rate to catch up" figure.
+  Still report the projected month-end total for reference, but state
+  plainly that the target is a deliberate stretch goal (not one the
+  business expects to hit) rather than something being "fallen short of."
+- **Step 4** is unaffected.
 
 ## Step 4 — 🔍 Emerging Patterns
 
