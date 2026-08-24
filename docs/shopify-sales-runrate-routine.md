@@ -121,9 +121,45 @@ Formatting conventions:
    `body` field, not `instructions`, so the AI writer doesn't rewrite the
    tone/formatting — dividers, bold headers, and emoji placement must be
    exact). Then call `send_draft` with the returned `draft_id` to actually
-   send it.
+   send it. Both the Shopify and Superhuman Mail connectors are configured
+   to always allow their respective actions (analytics queries; draft
+   creation and sending) without a manual approval prompt.
 2. **Fallback: Gmail draft.** If Superhuman Mail's tools aren't available
    in the session, create a Gmail draft (`mcp__Gmail__create_draft`) to
    the same recipients as above with the same subject and body, and note
    in the session output that it was drafted, not sent, and why (Gmail's
    connector here has no send action).
+
+## Failure handling
+
+These are unattended, scheduled runs — nobody is watching the session
+output, so a run that just stops and reports failure only in the
+transcript is invisible to Shaye. The email inbox is the only channel
+that reliably reaches her, so any genuine failure must be reported there,
+not just left in the session.
+
+If the run cannot be completed for any reason — Shopify authorization has
+expired, a required tool remains unavailable after a reasonable retry, the
+session gets interrupted or restarted mid-run, the monthly target is
+missing (see Inputs above; this one still sends the rest of the report,
+just without target-relative math), or any other blocker — do not
+fabricate numbers to fill the gap. Instead:
+
+1. Report only what could actually be verified; state plainly what
+   couldn't be completed and why.
+2. Send a short failure-notification email **to `shaye@vergecollective.com.au`
+   only** (no cc, regardless of which trigger fired), via the same
+   delivery mechanism above (Superhuman primary, Gmail draft fallback).
+   Subject: `⚠️ Stackers eComm Sales run rate – run failed ([date])`.
+   Body: what was attempted, what specifically failed (e.g. "Shopify
+   authorization appears expired", "the GitHub repo could not be read
+   after retrying", "the session was interrupted before the report could
+   be sent"), and whether any partial data was gathered.
+3. This applies even if the failure happens partway through — e.g. the
+   numbers were fully computed but the send itself failed, or a draft was
+   created but never sent. Send the failure email rather than leaving the
+   run silently incomplete.
+4. Exception: don't send a failure email for something that resolved on
+   its own within the same run after a normal retry (e.g. a transient MCP
+   disconnect that reconnected a moment later) — only for a genuine
+   blocker that actually prevented the report from being delivered.
