@@ -20,7 +20,10 @@ the run will land an hour off local time.
 ## Prerequisites
 
 Confirmed available in this account:
-- **Gmail** — connected, used for the BTK invoice gate check.
+- **Superhuman Mail** (or Gmail) — connected, used for the BTK invoice gate
+  check. Superhuman Mail's `query_email_and_calendar` is the more reliable
+  way to locate the invoice email by content rather than guessing the exact
+  subject line — see Step 2.
 - **Shopify** — connected, used for Step 3.
 - **Google Drive** — connected, used to write the output row (Step 8).
 
@@ -47,32 +50,75 @@ the report will be incomplete until they're sorted:
 - State the computed dates at the top of the output and use them
   consistently in every step below.
 
-## Step 2 — GATE CHECK: BTK 3PL Weekly Invoice email
+## Step 2 — GATE CHECK: BTK 3PL weekly invoice email
 
 Do this **first**, before any other step.
 
-- Search Gmail for the **"BTK 3PL Weekly Invoice Automation"** email
-  received today (the reporting Monday).
+**Finding the email.** There is no "BTK 3PL Weekly Invoice Automation"
+email — a one-off CartonCloud automation with that description existed
+briefly in January 2026 and was discontinued. The real weekly source is
+the Xero invoice-due notice, sent Monday mornings:
+- **Subject:** `[Stackers Finance] Invoice #INV-XXXX from BTK Logistics (3PL) Pty Ltd is due`
+- **From:** `messaging-service@post.xero.com`
+- **Attachment:** `invoice_XXXX_summary_.xlsx` — this is the file to parse,
+  not the email body or the PDF.
+
+Search by content (e.g. Superhuman Mail's `query_email_and_calendar`, or a
+subject/sender search for `BTK Logistics` + `is due`) rather than an exact
+subject match — the invoice number changes every week. Confirm the
+attachment's `Cover` sheet `Period:` row covers the reporting week from
+Step 1 before trusting the file; BTK invoice numbers aren't reliably
+sequential with calendar weeks.
+
 - **Not present** → stop immediately. Output exactly:
   `ABORTED: BTK weekly invoice email not yet received as of [timestamp]. Re-run once it arrives.`
   Do not proceed to any other step — this gate exists to avoid burning a
   run that can't complete.
-- **Present** → read the email and any attachment in full and extract the
-  following, keeping eComm and B2B strictly separate:
+- **Present** → download the `invoice_XXXX_summary_.xlsx` attachment and
+  extract the figures below, keeping eComm and B2B strictly separate.
 
-  **eComm:**
-  - Pick and pack cost for the week; average per order; units per order packed
-  - Packaging cost for the week; average per order
-  - Postage cost for the week; average per order; average weight per order
-  - Orders fulfilled
+**Identifying B2B vs eComm.** The workbook does not pre-split channels —
+everything must be derived from the `Sale Orders` sheet. A row is a
+**B2B** order if its `Reference` or `Charge Description` column contains
+the literal text `B2B` (BTK tags these orders, e.g. `ADMIN FEE - B2B`);
+every other row is **eComm**. In a typical week there are far more eComm
+rows than B2B rows (recent samples: 50 eComm to 1 B2B).
 
-  **B2B:** same five figures as eComm, kept in a separate column group.
+**Pick & pack + packaging.** BTK invoices these as a single combined
+line — there is no separate "packaging" total anywhere in the workbook.
+To split them, parse each order's `Charge Description` text (column E of
+`Sale Orders`) into two buckets:
+- *Packaging materials* — lines matching `Paper Filler`, any carton/box
+  SKU line (e.g. `07.C46265.0x`, `NNN x NNN x NNNmm`), `Large Carton`,
+  `Labelling Fees`, an envelope line, `Consumables`, `Fragile Label`.
+- *Pick & pack proper* — everything else (`Flat fee for processing Sale
+  Order`, `Charges for Outbound Units`, `Urgent Order Charge`, any
+  `ADMIN FEE` line).
 
-  **Both:** total storage costs (one combined figure, not split by channel).
+  Sum each bucket per channel (`charge` column total, split into the two
+  buckets above); `orders fulfilled` = row count per channel; `units/order`
+  = average of the unit count parsed from each row's `Unit - (N @ ...)`
+  text. Sanity-check: eComm total + B2B total for each bucket must equal
+  the workbook's own totals (`Sale Orders: NN` cell in `Warehouse Summary`,
+  matching `Charges for Pick and Pack` on the `Cover` sheet) — if they
+  don't reconcile to the cent, something was mis-parsed; flag it rather
+  than reporting the numbers.
 
-  Sanity-check that the invoice covers the reporting week from Step 1. If
-  the dates don't match, flag it prominently but still record the figures
-  with a warning attached.
+**Postage.** Use the `Consignments and Manifests` sheet, not
+`Consignment Data` (the latter's `Fee Total`/`Total` columns are usually
+zero for non-B2B rows). Each row there is one order; split eComm/B2B the
+same way as above (by `Reference`), sum `Total` per channel for postage
+cost, and average `# WGT (kg)` per channel for average weight/order. This
+must reconcile to the `Cover` sheet's `Charges for Freight` total and to
+`Consignments and Manifests`' own `TOTAL CHARGES` cell.
+
+**Storage.** Single combined figure — `Cover` sheet `Charges for Storage`
+(also on the `Storage Summary` sheet). Not split by channel; BTK doesn't
+track storage per channel.
+
+Sanity-check that the invoice's `Period:` on the `Cover` sheet matches the
+reporting week from Step 1. If the dates don't match, flag it prominently
+but still record the figures with a warning attached.
 
 ## Step 3 — Shopify
 
