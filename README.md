@@ -53,3 +53,74 @@ AEDT (UTC+11, roughly early October–early April), the report will actually
 land at 7am Sydney time instead of 6am until the cron offset is manually
 shifted (subtract one hour from the UTC hour, e.g. `0 20 * * 1-4` becomes
 `0 19 * * 1-4`, around the first Sunday of October and April each year).
+
+---
+
+# Daily Inbox Cleanup
+
+Automated daily sweep of `shaye@vergecollective.com.au`'s inbox (and
+aliases like `finance@vergecollective.com.au` that deliver into it) that
+deletes email matching a growing set of rules Shaye defines over time.
+
+## What it does
+
+Every morning, a scheduled Claude session checks the inbox against every
+rule recorded in [`config/inbox-cleanup-rules.md`](config/inbox-cleanup-rules.md)
+and deletes (moves to Trash) anything that matches. It only acts on
+explicitly recorded rules — it never guesses at new ones. When a rule's
+condition can't be confidently evaluated against a specific email (the
+format looks different than expected, an exception might apply but the
+wording is unclear), the routine leaves that email alone and emails Shaye
+a question instead — she can reply by email and the next day's run picks
+up the answer, so nothing requires coming back into Claude Code. See
+[`docs/inbox-cleanup-routine.md`](docs/inbox-cleanup-routine.md) for the
+full process spec, including that question/reply protocol and the safety
+rules (deletions are always to Trash, never permanent).
+
+Current rules (see the config file for full detail, including tested
+edge cases):
+
+1. **Cin7 Core ("sin7cor") Xero autosync reports** to `finance@` — deleted
+   only when the sync **completed** and the processed/successful record
+   counts match; sync **failures** are always kept, even if their counts
+   happen to match.
+2. **Asana task update notifications** (`no-reply@asana.com`) — deleted
+   in full. Asana billing receipts and marketing email from other Asana
+   senders are a different thing and are left alone.
+
+## How it's implemented
+
+This repo holds the **spec**, not application code. The actual work runs
+as a scheduled Claude Code trigger (a "Routine") that, on each firing,
+spins up a fresh Claude session with the full instructions in
+[`docs/inbox-cleanup-routine.md`](docs/inbox-cleanup-routine.md) and live
+access to the mail MCP connectors already authorized on the account.
+Adding a new cleanup rule means telling Claude in a session — it tests the
+rule against the live inbox, records it in
+[`config/inbox-cleanup-rules.md`](config/inbox-cleanup-rules.md), and
+commits; the trigger picks it up on its next daily firing without needing
+its own prompt changed (unless the *process* changes, not just the
+ruleset).
+
+## Prerequisites / setup
+
+- **Superhuman Mail connector must stay authorized** for
+  `shaye@vergecollective.com.au` — this is the primary tool used for
+  search, reading, and trashing mail. Falls back to the Gmail connector if
+  Superhuman Mail's tools are unavailable in a given run.
+- **Gmail connector** is used specifically for label management (creating
+  and checking the `InboxCleanup/AwaitingReply` label used by the
+  question/reply protocol).
+- **Rules**: stored in
+  [`config/inbox-cleanup-rules.md`](config/inbox-cleanup-rules.md) as an
+  append-only, dated ledger — each entry records the sender/subject/body
+  condition, the action, and how it was validated against the real inbox.
+
+## Known limitation: daylight saving time
+
+Same caveat as the Shopify routine above: the trigger's cron is defined in
+UTC assuming AEST (UTC+10) year-round. During AEDT (UTC+11, roughly early
+October–early April), the trigger will actually fire at 7:15am
+Sydney time instead of 6:15am until the cron offset is manually shifted
+(subtract one hour from the UTC hour, e.g. `15 20 * * *` becomes
+`15 19 * * *`, around the first Sunday of October and April each year).
