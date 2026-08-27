@@ -126,9 +126,10 @@ an example of that).
 - **Validated**: 2026-08-27 — found ~20 inbound pr@ emails. All but 2 had
   already been manually forwarded to `joseph@stackersau.com.au` by Shaye
   (already archived, nothing to do). The remaining 2 were the exception
-  cases above (personal replies, correctly left untouched). No untouched,
-  unhandled example existed at test time to exercise the forward+subtask
-  path live — the Asana project and parent task were confirmed to exist
-  and be open via `search_tasks`, but the first real live run of this
-  rule's forward+subtask action is still pending. Keep an eye on the
-  first few days this rule actually fires.
+  cases above (personal replies, correctly left untouched).
+  Forward+subtask+archive was then exercised live end-to-end against a
+  genuinely untouched email ("Home organisation collaboration x Codie
+  Ryan" from `codieryanugc@gmail.com`, thread `1a042818c113ff1b`): forwarded
+  to `joseph@stackersau.com.au`, subtask `codieryanugc@gmail.com` created
+  under the parent task (gid `1217933138434286`), thread archived — all
+  three actions confirmed successful.
