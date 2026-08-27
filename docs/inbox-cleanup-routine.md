@@ -15,11 +15,17 @@ the individual rules.
 ## What it does
 
 Every day, a scheduled Claude session sweeps `shaye@vergecollective.com.au`'s
-inbox (including mail addressed to aliases like `finance@vergecollective.com.au`,
-which deliver into the same mailbox) and applies every rule recorded in
-`config/inbox-cleanup-rules.md`. Only mail that clearly matches a rule's
-sender/subject/body condition is touched. Anything a rule can't confidently
-decide is left alone and flagged to Shaye by email instead of guessed at.
+inbox (including mail addressed to aliases like `finance@vergecollective.com.au`
+and `pr@stackersaustralia.com.au`, which deliver into the same mailbox) and
+applies every rule recorded in `config/inbox-cleanup-rules.md`. Only mail
+that clearly matches a rule's sender/subject/body condition is touched.
+Anything a rule can't confidently decide is left alone and flagged to Shaye
+by email instead of guessed at.
+
+Rules aren't limited to deleting mail — a rule's action can be any
+combination of: delete (Trash), archive, forward to another address, and/or
+create an Asana subtask. See `config/inbox-cleanup-rules.md` for what each
+current rule actually does.
 
 ## Trigger and schedule
 
@@ -44,6 +50,27 @@ Superhuman Mail's labels and Gmail's are the same underlying mailbox
 labels but Gmail's tools are more precise for creating/looking up a
 specific label by ID.
 
+**Forwarding**: Superhuman Mail `create_or_update_draft` with
+`type: "forward"`, `thread_id` set to the source thread, and a short
+`body` (the server appends the original message automatically — see that
+tool's own description). Then `send_draft` with the returned `draft_id` to
+actually send it — creating the draft alone does nothing.
+
+**Archiving**: Superhuman Mail `update_thread` with `mark_done: true`.
+This is distinct from deleting — archived mail stays fully intact and
+searchable, just out of the inbox view. Use archive (never Trash) for
+rules whose whole point is routing/filing real mail, not disposing of it.
+
+**Asana**: used only by rules that say so (currently Rule 4). Look up the
+target parent task by name within its project (`search_tasks`, filtered
+to the project's gid) rather than trusting a hardcoded gid — projects and
+tasks can be renamed or recreated. Create the subtask with `create_tasks`,
+setting `parent` to the looked-up task's gid. The Asana connector must be
+enabled on whatever trigger/session runs this routine — if the connector
+or its tools are unavailable, treat that the same as any other tool
+failure under Failure handling (below): don't skip the email silently,
+email Shaye a heads-up.
+
 ## Process, each run
 
 1. **Check for pending clarification replies first** (see "Handling
@@ -55,8 +82,14 @@ specific label by ID.
    evaluate the rule's actual condition — never decide from a snippet
    alone, since conditions like "N equals M" need the real numbers, and
    "the body says failed" needs the real wording.
-3. **Where a thread satisfies a rule's delete condition**: `trash_thread`
-   it.
+3. **Where a thread satisfies a rule's condition**: perform that rule's
+   action(s) in full — e.g. forward-then-archive, or forward-then-subtask-
+   then-archive; a rule isn't done until every action it specifies has
+   happened, not just the first one. Before forwarding, check whether the
+   thread already contains an outbound message to the rule's forward
+   target (Shaye sometimes handles one manually before the sweep runs) —
+   if so, skip the forward (and any subtask creation) and just apply the
+   remaining action(s), e.g. archive.
 4. **Where a thread matches a rule's sender/subject but the body condition
    is unclear** (the expected fields are missing, the wording doesn't
    match either the covered case or a documented exception, the format
@@ -102,11 +135,28 @@ run, guess, or delete speculatively. Instead:
      re-ask, don't nag, don't escalate the wait — just check again next
      run.
 
+## Failure handling
+
+This is an unattended run — nobody is watching the session output, so a
+tool failure that just stops the run silently is invisible to Shaye. If a
+rule's action can't be completed for any reason (a required connector not
+authorized/expired, a tool still unavailable after a reasonable retry, the
+Asana project/task not found, the run interrupted mid-way), do not skip it
+silently and do not guess. Send a short failure-notification email to
+`shaye@vergecollective.com.au` (Superhuman Mail primary, Gmail draft
+fallback), subject `⚠️ Inbox Cleanup – run failed ([date])`, explaining
+what was attempted and what specifically failed, then stop that rule (other
+rules that aren't affected by the same failure can still proceed). Don't
+send a failure email for something that resolved on its own after a normal
+retry within the same run.
+
 ## Safety
 
 - "Delete" always means moving to **Trash** (`trash_thread`), never a
   permanent/unrecoverable delete. Trash is recoverable, which matters
   since this runs unattended and Shaye isn't watching in real time.
+  "Archive" is a separate, even gentler action (below) — never conflate
+  the two.
 - Never apply a rule to a thread whose sender/subject don't match that
   rule's filters (including its documented exceptions) — no fuzzy or
   "looks similar enough" matching. When in doubt, treat it as ambiguous
@@ -119,6 +169,14 @@ run, guess, or delete speculatively. Instead:
 - `trash_thread` on an already-trashed thread is a no-op in practice (it
   simply won't be found by the next day's inbox search), so there's no
   need for extra idempotency bookkeeping beyond what's described above.
+- Forwarding is one-way and can't be unsent after the undo window — double
+  check the forward target matches the rule exactly before sending, and
+  always check for an existing outbound forward in the thread first (see
+  Process step 3) so a rule never double-forwards or double-creates a
+  subtask for the same email.
+- A rule's documented exception (e.g. Rule 4's "skip if Shaye already
+  personally replied") is exactly as binding as its main condition — check
+  it every time, not just when it seems likely to apply.
 
 ## Known limitation: daylight saving time
 
@@ -139,3 +197,12 @@ including the two edge cases that shaped Rule 1's "failed" exception and
 Rule 2's sender-scope boundary (payment receipts and marketing mail from
 Asana-affiliated senders are deliberately not touched by "delete all
 Asana task updates").
+
+Rules 3 and 4 were added and tested 2026-08-27, this time against the live
+trigger's mailbox rather than a pre-trigger manual sweep — see their
+"Validated" notes in `config/inbox-cleanup-rules.md`. Rule 3's
+forward-then-archive action was exercised live end-to-end successfully.
+Rule 4's forward+subtask+archive action has not yet had a live untouched
+email to run against (Shaye had already manually handled or personally
+replied to everything currently in the pr@ mailbox) — its Asana target
+was confirmed to exist, but keep an eye on its first few real firings.
