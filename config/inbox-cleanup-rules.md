@@ -1,135 +1,157 @@
-# Inbox Cleanup Rules
-
-Append-only ledger of rules applied by the daily inbox cleanup routine (see
-[`docs/inbox-cleanup-routine.md`](../docs/inbox-cleanup-routine.md) for how
-these are applied, the ambiguity/question protocol, and safety notes). This
-file holds the *rules themselves* — kept separate from the routine doc
-because the rule list is expected to grow over time.
-
-**To add a rule**: tell Claude the new rule in plain language in a Claude
-Code session. Claude tests it against the live inbox first, adds a new
-numbered entry below with the exact sender/subject/condition/action and the
-validation result, then commits. Don't edit a validated rule's logic
-without re-testing — append a dated exception instead (see Rule 1 below for
-an example of that).
-
----
-
-## Rule 1 — Cin7 Core ("sin7cor") Xero autosync reports, completed with matching counts
-
-- **Added**: 2026-08-25
-- **Sender**: `noreply@post.dearsystems.com` (Cin7 Core, formerly DEAR
-  Systems / DEAR Inventory — Shaye refers to this as "sin7cor")
-- **Recipient**: `finance@vergecollective.com.au` (an alias delivering into
-  `shaye@vergecollective.com.au`'s inbox — search the one mailbox)
-- **Subject contains**: "Autosync daily report" (the sender's actual
-  wording; also matches loosely-specified "Auto Sync Daily Report")
-- **Condition**: body starts with "Xero auto-sync has been completed" AND
-  states "Total records processed: N" and "Total successfully processed
-  records: M" where N equals M
-- **Action**: delete (move to Trash)
-- **Exception** (added 2026-08-25, after testing against real emails): if
-  the body instead says the sync **failed** ("Xero auto-sync has failed due
-  to the following errors...") — even when the record counts turn out
-  equal — do **not** delete it. A failed sync can still report equal
-  counts (e.g. every record was attempted and technically "processed" but
-  flagged with supplier-matching or invoice-export errors), so the "failed"
-  wording always overrides the count-equality check.
-- **Also covered**: the same sender sometimes uses a different subject,
-  "Synchronisation report — ...", specifically for failure notifications.
-  These always describe a failure and are never deleted (covered by the
-  exception above; they also don't match this rule's subject filter in the
-  first place).
-- **Validated**: 2026-08-25 manual sweep of the live inbox — 6 "Autosync
-  daily report" emails found: 4 completed with matching counts (deleted:
-  58/58, 1/1, 9/9, 6/6), 1 completed with mismatched counts 48≠40 (kept —
-  condition not met), 1 that said "failed" despite 80/80 counts (kept —
-  exception applies). Also found 2 "Synchronisation report" emails (one
-  thread with 4 messages), all describing failures — all kept untouched.
-
-## Rule 2 — Asana task update notifications
-
-- **Added**: 2026-08-25
-- **Sender**: `no-reply@asana.com`
-- **Scope**: any notification email from this address about task/project
-  activity — due-date digests ("Monday/Tuesday/... tasks due soon"),
-  comments, task/project invites, invite-accepted notices, deleted-project
-  confirmations, "you have unread notifications" digests, etc.
-- **Action**: delete (move to Trash), no body condition — delete all of
-  them
-- **Explicitly NOT covered** by this rule (different senders — left alone
-  until a rule says otherwise):
-  - `customer-service@asana.com` — billing/payment receipts (financial
-    record, e.g. "Asana payment confirmation")
-  - `learn@go.asana.com` — Asana's own marketing/onboarding emails
-- **Validated**: 2026-08-25 manual sweep — 11 matching emails found and
-  deleted; 1 payment confirmation and 2 marketing emails from the other
-  Asana-affiliated senders above were left untouched.
-
-## Rule 3 — Ooze Studios invoices, forward to Dext
-
-- **Added**: 2026-08-27
-- **Subject contains**: "from Ooze Studios Pty Ltd for The Verge Collective
-  Pty Ltd" (Xero "invoice is due" notifications; actual sender is
-  `messaging-service@post.xero.com`, to `shaye@vergecollective.com.au`)
-- **Condition**: none — every matching email qualifies
-- **Action**:
-  1. Forward the email to `tvcollective@dext.cc` (Superhuman Mail
-     `create_or_update_draft` with `type: "forward"`, a short body like
-     "Please process for bookkeeping.", then `send_draft`)
-  2. Archive it (`update_thread` with `mark_done: true`) — not Trash; this
-     is a real financial record Shaye wants kept, just out of the inbox
-- **Validated**: 2026-08-27 — found 6 matching emails total; 5 had already
-  been manually forwarded to `tvcollective@dext.cc` by Shaye (nothing to
-  do — don't re-forward something already forwarded). The 1 unforwarded
-  one ("August Invoice 2598", thread `1a03946c9c1d17a7`) was forwarded and
-  archived live as the test case — confirmed both actions completed
-  correctly.
-- **Idempotency note**: before forwarding, check whether the thread
-  already contains an outbound message to `tvcollective@dext.cc` (Shaye
-  forwards some of these manually before the daily sweep runs) — if so,
-  just archive it without forwarding again.
-
-## Rule 4 — PR mailbox inbound: forward to Joseph + Asana subtask
-
-- **Added**: 2026-08-27
-- **Trigger**: any email received at `pr@stackersaustralia.com.au`
-- **Exception** (confirmed with Shaye 2026-08-27): skip entirely — do not
-  forward, subtask, or archive — if Shaye has **already personally
-  replied** to the sender herself (a message in the thread sent by her
-  directly to the original sender's address, not just a forward to
-  Joseph). Real examples that must be left alone: "A little 21st birthday
-  wish" and "Travel jewellery boxes" — both personal-favor/wholesale
-  threads she chose to handle herself rather than delegate. This is a
-  meaningful exception, not an edge case to relax later — the whole point
-  of pr@ is that most inbound mail is standard creator/influencer pitches
-  she wants routed straight to Joseph, but not everything that lands there
-  is one of those.
-- **Condition**: none beyond the exception above — every other email
-  qualifies, regardless of subject wording (pitches arrive under wildly
-  different subjects: "Creator Collaboration – X", "PR & TikTok
-  collaboration opportunity", blank subjects, etc.)
-- **Action**:
-  1. Forward the email to `joseph@stackersau.com.au`
-  2. Add a new subtask, named with the **sender's email address**, under
-     the open task "Review inbound influencer requests, evaluate, respond"
-     (gid `1217860849501378`) in the "2. Marketing" Asana project (gid
-     `1217854649159573`). Look the parent task up by name within that
-     project first (`search_tasks`) rather than trusting the gid blindly,
-     in case it's moved or been recreated; only fall back to the gid above
-     if the by-name lookup fails.
-  3. Archive the email (`update_thread` with `mark_done: true`)
-- **Idempotency note**: same as Rule 3 — if the thread already contains an
-  outbound forward to `joseph@stackersau.com.au`, it's already been
-  handled (manually or by a prior run); just archive it without forwarding
-  or creating a duplicate subtask.
-- **Validated**: 2026-08-27 — found ~20 inbound pr@ emails. All but 2 had
-  already been manually forwarded to `joseph@stackersau.com.au` by Shaye
-  (already archived, nothing to do). The remaining 2 were the exception
-  cases above (personal replies, correctly left untouched).
-  Forward+subtask+archive was then exercised live end-to-end against a
-  genuinely untouched email ("Home organisation collaboration x Codie
-  Ryan" from `codieryanugc@gmail.com`, thread `1a042818c113ff1b`): forwarded
-  to `joseph@stackersau.com.au`, subtask `codieryanugc@gmail.com` created
-  under the parent task (gid `1217933138434286`), thread archived — all
-  three actions confirmed successful.
+IyBJbmJveCBDbGVhbnVwIFJ1bGVzCgpBcHBlbmQtb25seSBsZWRnZXIgb2YgcnVsZXMgYXBwbGll
+ZCBieSB0aGUgZGFpbHkgaW5ib3ggY2xlYW51cCByb3V0aW5lIChzZWUKW2Bkb2NzL2luYm94LWNs
+ZWFudXAtcm91dGluZS5tZGBdKC4uL2RvY3MvaW5ib3gtY2xlYW51cC1yb3V0aW5lLm1kKSBmb3Ig
+aG93CnRoZXNlIGFyZSBhcHBsaWVkLCB0aGUgYW1iaWd1aXR5L3F1ZXN0aW9uIHByb3RvY29sLCBh
+bmQgc2FmZXR5IG5vdGVzKS4gVGhpcwpmaWxlIGhvbGRzIHRoZSAqcnVsZXMgdGhlbXNlbHZlcyog
+LSBrZXB0IHNlcGFyYXRlIGZyb20gdGhlIHJvdXRpbmUgZG9jCmJlY2F1c2UgdGhlIHJ1bGUgbGlz
+dCBpcyBleHBlY3RlZCB0byBncm93IG92ZXIgdGltZS4KCioqVG8gYWRkIGEgcnVsZSoqOiB0ZWxs
+IENsYXVkZSB0aGUgbmV3IHJ1bGUgaW4gcGxhaW4gbGFuZ3VhZ2UgaW4gYSBDbGF1ZGUKQ29kZSBz
+ZXNzaW9uLiBDbGF1ZGUgdGVzdHMgaXQgYWdhaW5zdCB0aGUgbGl2ZSBpbmJveCBmaXJzdCwgYWRk
+cyBhIG5ldwpudW1iZXJlZCBlbnRyeSBiZWxvdyB3aXRoIHRoZSBleGFjdCBzZW5kZXIvc3ViamVj
+dC9jb25kaXRpb24vYWN0aW9uIGFuZCB0aGUKdmFsaWRhdGlvbiByZXN1bHQsIHRoZW4gY29tbWl0
+cy4gRG9uJ3QgZWRpdCBhIHZhbGlkYXRlZCBydWxlJ3MgbG9naWMKd2l0aG91dCByZS10ZXN0aW5n
+IC0gYXBwZW5kIGEgZGF0ZWQgZXhjZXB0aW9uIGluc3RlYWQgKHNlZSBSdWxlIDEgYmVsb3cgZm9y
+CmFuIGV4YW1wbGUgb2YgdGhhdCkuCgotLS0KCiMjIFJ1bGUgMSDigJQgQ2luNyBDb3JlICgic2lu
+N2NvciIpIFhlcm8gYXV0b3N5bmMgcmVwb3J0cywgY29tcGxldGVkIHdpdGggbWF0Y2hpbmcgY291
+bnRzCgotICoqQWRkZWQqKjogMjAyNi0wOC0yNQotICoqU2VuZGVyKio6IGBub3JlcGx5QHBvc3Qu
+ZGVhcnN5c3RlbXMuY29tYCAoQ2luNyBDb3JlLCBmb3JtZXJseSBERUFSCiAgU3lzdGVtcyAvIERF
+QVIgSW52ZW50b3J5IC0gU2hheWUgcmVmZXJzIHRvIHRoaXMgYXMgInNpbjdjb3IiKQotICoqUmVj
+aXBpZW50Kio6IGBmaW5hbmNlQHZlcmdlY29sbGVjdGl2ZS5jb20uYXVgIChhbiBhbGlhcyBkZWxp
+dmVyaW5nIGludG8KICBgc2hheWVAdmVyZ2Vjb2xsZWN0aXZlLmNvbS5hdWAncyBpbmJveCAtIHNl
+YXJjaCB0aGUgb25lIG1haWxib3gpCi0gKipTdWJqZWN0IGNvbnRhaW5zKio6ICJBdXRvc3luYyBk
+YWlseSByZXBvcnQiICh0aGUgc2VuZGVyJ3MgYWN0dWFsCiAgd29yZGluZzsgYWxzbyBtYXRjaGVz
+IGxvb3NlbHktc3BlY2lmaWVkICJBdXRvIFN5bmMgRGFpbHkgUmVwb3J0IikKLSAqKkNvbmRpdGlv
+bioqOiBib2R5IHN0YXJ0cyB3aXRoICJYZXJvIGF1dG8tc3luYyBoYXMgYmVlbiBjb21wbGV0ZWQi
+IEFORAogIHN0YXRlcyAiVG90YWwgcmVjb3JkcyBwcm9jZXNzZWQ6IE4iIGFuZCAiVG90YWwgc3Vj
+Y2Vzc2Z1bGx5IHByb2Nlc3NlZAogIHJlY29yZHM6IE0iIHdoZXJlIE4gZXF1YWxzIE0KLSAqKkFj
+dGlvbioqOiBkZWxldGUgKG1vdmUgdG8gVHJhc2gpCi0gKipFeGNlcHRpb24qKiAoYWRkZWQgMjAy
+Ni0wOC0yNSwgYWZ0ZXIgdGVzdGluZyBhZ2FpbnN0IHJlYWwgZW1haWxzKTogaWYKICB0aGUgYm9k
+eSBpbnN0ZWFkIHNheXMgdGhlIHN5bmMgKipmYWlsZWQqKiAoIlhlcm8gYXV0by1zeW5jIGhhcyBm
+YWlsZWQgZHVlCiAgdG8gdGhlIGZvbGxvd2luZyBlcnJvcnMuLi4iKSAtIGV2ZW4gd2hlbiB0aGUg
+cmVjb3JkIGNvdW50cyB0dXJuIG91dAogIGVxdWFsIC0gZG8gKipub3QqKiBkZWxldGUgaXQuIEEg
+ZmFpbGVkIHN5bmMgY2FuIHN0aWxsIHJlcG9ydCBlcXVhbAogIGNvdW50cyAoZS5nLiBldmVyeSBy
+ZWNvcmQgd2FzIGF0dGVtcHRlZCBhbmQgdGVjaG5pY2FsbHkgInByb2Nlc3NlZCIgYnV0CiAgZmxh
+Z2dlZCB3aXRoIHN1cHBsaWVyLW1hdGNoaW5nIG9yIGludm9pY2UtZXhwb3J0IGVycm9ycyksIHNv
+IHRoZSAiZmFpbGVkIgogIHdvcmRpbmcgYWx3YXlzIG92ZXJyaWRlcyB0aGUgY291bnQtZXF1YWxp
+dHkgY2hlY2suCi0gKipBbHNvIGNvdmVyZWQqKjogdGhlIHNhbWUgc2VuZGVyIHNvbWV0aW1lcyB1
+c2VzIGEgZGlmZmVyZW50IHN1YmplY3QsCiAgIlN5bmNocm9uaXNhdGlvbiByZXBvcnQg4oCUIC4u
+LiIsIHNwZWNpZmljYWxseSBmb3IgZmFpbHVyZSBub3RpZmljYXRpb25zLgogIFRoZXNlIGFsd2F5
+cyBkZXNjcmliZSBhIGZhaWx1cmUgYW5kIGFyZSBuZXZlciBkZWxldGVkIChjb3ZlcmVkIGJ5IHRo
+ZQogIGV4Y2VwdGlvbiBhYm92ZTsgdGhleSBhbHNvIGRvbid0IG1hdGNoIHRoaXMgcnVsZSdzIHN1
+YmplY3QgZmlsdGVyIGluIHRoZQogIGZpcnN0IHBsYWNlKS4KLSAqKlZhbGlkYXRlZCoqOiAyMDI2
+LTA4LTI1IG1hbnVhbCBzd2VlcCBvZiB0aGUgbGl2ZSBpbmJveCAtIDYgIkF1dG9zeW5jCiAgZGFp
+bHkgcmVwb3J0IiBlbWFpbHMgZm91bmQ6IDQgY29tcGxldGVkIHdpdGggbWF0Y2hpbmcgY291bnRz
+IChkZWxldGVkOgogIDU4LzU4LCAxLzEsIDkvOSwgNi82KSwgMSBjb21wbGV0ZWQgd2l0aCBtaXNt
+YXRjaGVkIGNvdW50cyA0OOKJoDQwIChrZXB0IC0KICBjb25kaXRpb24gbm90IG1ldCksIDEgdGhh
+dCBzYWlkICJmYWlsZWQiIGRlc3BpdGUgODAvODAgY291bnRzIChrZXB0IC0KICBleGNlcHRpb24g
+YXBwbGllcykuIEFsc28gZm91bmQgMiAiU3luY2hyb25pc2F0aW9uIHJlcG9ydCIgZW1haWxzIChv
+bmUKICB0aHJlYWQgd2l0aCA0IG1lc3NhZ2VzKSwgYWxsIGRlc2NyaWJpbmcgZmFpbHVyZXMgLSBh
+bGwga2VwdCB1bnRvdWNoZWQuCgojIyBSdWxlIDIg4oCUIEFzYW5hIHRhc2sgdXBkYXRlIG5vdGlm
+aWNhdGlvbnMKCi0gKipBZGRlZCoqOiAyMDI2LTA4LTI1Ci0gKipTZW5kZXIqKjogYG5vLXJlcGx5
+QGFzYW5hLmNvbWAKLSAqKlNjb3BlKio6IGFueSBub3RpZmljYXRpb24gZW1haWwgZnJvbSB0aGlz
+IGFkZHJlc3MgYWJvdXQgdGFzay9wcm9qZWN0CiAgYWN0aXZpdHkgLSBkdWUtZGF0ZSBkaWdlc3Rz
+ICgiTW9uZGF5L1R1ZXNkYXkvLi4uIHRhc2tzIGR1ZSBzb29uIiksCiAgY29tbWVudHMsIHRhc2sv
+cHJvamVjdCBpbnZpdGVzLCBpbnZpdGUtYWNjZXB0ZWQgbm90aWNlcywgZGVsZXRlZC1wcm9qZWN0
+CiAgY29uZmlybWF0aW9ucywgInlvdSBoYXZlIHVucmVhZCBub3RpZmljYXRpb25zIiBkaWdlc3Rz
+LCBldGMuCi0gKipBY3Rpb24qKjogZGVsZXRlIChtb3ZlIHRvIFRyYXNoKSwgbm8gYm9keSBjb25k
+aXRpb24gLSBkZWxldGUgYWxsIG9mCiAgdGhlbQotICoqRXhwbGljaXRseSBOT1QgY292ZXJlZCoq
+IGJ5IHRoaXMgcnVsZSAoZGlmZmVyZW50IHNlbmRlcnMgLSBsZWZ0IGFsb25lCiAgdW50aWwgYSBy
+dWxlIHNheXMgb3RoZXJ3aXNlKToKICAtIGBjdXN0b21lci1zZXJ2aWNlQGFzYW5hLmNvbWAgLSBi
+aWxsaW5nL3BheW1lbnQgcmVjZWlwdHMgKGZpbmFuY2lhbAogICAgcmVjb3JkLCBlLmcuICJBc2Fu
+YSBwYXltZW50IGNvbmZpcm1hdGlvbiIpCiAgLSBgbGVhcm5AZ28uYXNhbmEuY29tYCAtIEFzYW5h
+J3Mgb3duIG1hcmtldGluZy9vbmJvYXJkaW5nIGVtYWlscwotICoqVmFsaWRhdGVkKio6IDIwMjYt
+MDgtMjUgbWFudWFsIHN3ZWVwIC0gMTEgbWF0Y2hpbmcgZW1haWxzIGZvdW5kIGFuZAogIGRlbGV0
+ZWQ7IDEgcGF5bWVudCBjb25maXJtYXRpb24gYW5kIDIgbWFya2V0aW5nIGVtYWlscyBmcm9tIHRo
+ZSBvdGhlcgogIEFzYW5hLWFmZmlsaWF0ZWQgc2VuZGVycyBhYm92ZSB3ZXJlIGxlZnQgdW50b3Vj
+aGVkLgoKIyMgUnVsZSAzIOKAlCBPb3plIFN0dWRpb3MgaW52b2ljZXMsIGZvcndhcmQgdG8gRGV4
+dAoKLSAqKkFkZGVkKio6IDIwMjYtMDgtMjcKLSAqKlN1YmplY3QgY29udGFpbnMqKjogImZyb20g
+T296ZSBTdHVkaW9zIFB0eSBMdGQgZm9yIFRoZSBWZXJnZSBDb2xsZWN0aXZlCiAgUHR5IEx0ZCIg
+KFhlcm8gImludm9pY2UgaXMgZHVlIiBub3RpZmljYXRpb25zOyBhY3R1YWwgc2VuZGVyIGlzCiAg
+YG1lc3NhZ2luZy1zZXJ2aWNlQHBvc3QueGVyby5jb21gLCB0byBgc2hheWVAdmVyZ2Vjb2xsZWN0
+aXZlLmNvbS5hdWApCi0gKipDb25kaXRpb24qKjogbm9uZSAtIGV2ZXJ5IG1hdGNoaW5nIGVtYWls
+IHF1YWxpZmllcwotICoqQWN0aW9uKio6CiAgMS4gRm9yd2FyZCB0aGUgZW1haWwgdG8gYHR2Y29s
+bGVjdGl2ZUBkZXh0LmNjYCAoU3VwZXJodW1hbiBNYWlsCiAgICAgYGNyZWF0ZV9vcl91cGRhdGVf
+ZHJhZnRgIHdpdGggYHR5cGU6ICJmb3J3YXJkImAsIGEgc2hvcnQgYm9keSBsaWtlCiAgICAgIlBs
+ZWFzZSBwcm9jZXNzIGZvciBib29ra2VlcGluZy4iLCB0aGVuIGBzZW5kX2RyYWZ0YCkKICAyLiBB
+cmNoaXZlIGl0IChgdXBkYXRlX3RocmVhZGAgd2l0aCBgbWFya19kb25lOiB0cnVlYCkgLSBub3Qg
+VHJhc2g7IHRoaXMKICAgICBpcyBhIHJlYWwgZmluYW5jaWFsIHJlY29yZCBTaGF5ZSB3YW50cyBr
+ZXB0LCBqdXN0IG91dCBvZiB0aGUgaW5ib3gKLSAqKlZhbGlkYXRlZCoqOiAyMDI2LTA4LTI3IC0g
+Zm91bmQgNiBtYXRjaGluZyBlbWFpbHMgdG90YWw7IDUgaGFkIGFscmVhZHkKICBiZWVuIG1hbnVh
+bGx5IGZvcndhcmRlZCB0byBgdHZjb2xsZWN0aXZlQGRleHQuY2NgIGJ5IFNoYXllIChub3RoaW5n
+IHRvCiAgZG8gLSBkb24ndCByZS1mb3J3YXJkIHNvbWV0aGluZyBhbHJlYWR5IGZvcndhcmRlZCku
+IFRoZSAxIHVuZm9yd2FyZGVkCiAgb25lICgiQXVndXN0IEludm9pY2UgMjU5OCIsIHRocmVhZCBg
+MWEwMzk0NmM5YzFkMTdhN2ApIHdhcyBmb3J3YXJkZWQgYW5kCiAgYXJjaGl2ZWQgbGl2ZSBhcyB0
+aGUgdGVzdCBjYXNlIC0gY29uZmlybWVkIGJvdGggYWN0aW9ucyBjb21wbGV0ZWQKICBjb3JyZWN0
+bHkuCi0gKipJZGVtcG90ZW5jeSBub3RlKio6IGJlZm9yZSBmb3J3YXJkaW5nLCBjaGVjayB3aGV0
+aGVyIHRoZSB0aHJlYWQKICBhbHJlYWR5IGNvbnRhaW5zIGFuIG91dGJvdW5kIG1lc3NhZ2UgdG8g
+YHR2Y29sbGVjdGl2ZUBkZXh0LmNjYCAoU2hheWUKICBmb3J3YXJkcyBzb21lIG9mIHRoZXNlIG1h
+bnVhbGx5IGJlZm9yZSB0aGUgZGFpbHkgc3dlZXAgcnVucykgLSBpZiBzbywKICBqdXN0IGFyY2hp
+dmUgaXQgd2l0aG91dCBmb3J3YXJkaW5nIGFnYWluLgoKIyMgUnVsZSA0IOKAlCBQUiBtYWlsYm94
+IGluYm91bmQ6IGZvcndhcmQgdG8gSm9zZXBoICsgQXNhbmEgc3VidGFzawoKLSAqKkFkZGVkKio6
+IDIwMjYtMDgtMjcKLSAqKlRyaWdnZXIqKjogYW55IGVtYWlsIHJlY2VpdmVkIGF0IGBwckBzdGFj
+a2Vyc2F1c3RyYWxpYS5jb20uYXVgLCB3aGVyZQogIGBwckBzdGFja2Vyc2F1c3RyYWxpYS5jb20u
+YXVgIGlzIHRoZSAqKnByaW1hcnkgIlRvOiIgcmVjaXBpZW50KiogKHNlZQogIHNjb3BlIGNsYXJp
+ZmljYXRpb24gYmVsb3cpLgotICoqRXhjZXB0aW9uKiogKGNvbmZpcm1lZCB3aXRoIFNoYXllIDIw
+MjYtMDgtMjcpOiBza2lwIGVudGlyZWx5IC0gZG8gbm90CiAgZm9yd2FyZCwgc3VidGFzaywgb3Ig
+YXJjaGl2ZSAtIGlmIFNoYXllIGhhcyAqKmFscmVhZHkgcGVyc29uYWxseQogIHJlcGxpZWQqKiB0
+byB0aGUgc2VuZGVyIGhlcnNlbGYgKGEgbWVzc2FnZSBpbiB0aGUgdGhyZWFkIHNlbnQgYnkgaGVy
+CiAgZGlyZWN0bHkgdG8gdGhlIG9yaWdpbmFsIHNlbmRlcidzIGFkZHJlc3MsIG5vdCBqdXN0IGEg
+Zm9yd2FyZCB0bwogIEpvc2VwaCkuIFJlYWwgZXhhbXBsZXMgdGhhdCBtdXN0IGJlIGxlZnQgYWxv
+bmU6ICJBIGxpdHRsZSAyMXN0IGJpcnRoZGF5CiAgd2lzaCIgYW5kICJUcmF2ZWwgamV3ZWxsZXJ5
+IGJveGVzIiAtIGJvdGggcGVyc29uYWwtZmF2b3Ivd2hvbGVzYWxlCiAgdGhyZWFkcyBzaGUgY2hv
+c2UgdG8gaGFuZGxlIGhlcnNlbGYgcmF0aGVyIHRoYW4gZGVsZWdhdGUuIFRoaXMgaXMgYQogIG1l
+YW5pbmdmdWwgZXhjZXB0aW9uLCBub3QgYW4gZWRnZSBjYXNlIHRvIHJlbGF4IGxhdGVyIC0gdGhl
+IHdob2xlIHBvaW50CiAgb2YgcHJAIGlzIHRoYXQgbW9zdCBpbmJvdW5kIG1haWwgaXMgc3RhbmRh
+cmQgY3JlYXRvci9pbmZsdWVuY2VyIHBpdGNoZXMKICBzaGUgd2FudHMgcm91dGVkIHN0cmFpZ2h0
+IHRvIEpvc2VwaCwgYnV0IG5vdCBldmVyeXRoaW5nIHRoYXQgbGFuZHMgaW4KICBpcyBvbmUgb2Yg
+dGhvc2UuCi0gKipTY29wZSBjbGFyaWZpY2F0aW9uKiogKGNvbmZpcm1lZCB3aXRoIFNoYXllIDIw
+MjYtMDgtMjkpOiAiYW55IGVtYWlsCiAgcmVjZWl2ZWQgYXQgcHJAc3RhY2tlcnNhdXN0cmFsaWEu
+Y29tLmF1IiBtZWFucyBwckAgbXVzdCBiZSB0aGUgcHJpbWFyeQogICoqVG86KiogcmVjaXBpZW50
+IC0gbm90IG1lcmVseSBjYydkLiBBbiBlbWFpbCB3aGVyZSBwckAgaXMgb25seSBjYydkCiAgKHNv
+bWVvbmUgZWxzZSBpcyB0aGUgcHJpbWFyeSAidG8iKSBkb2VzIG5vdCB0cmlnZ2VyIFJ1bGUgNCBh
+dCBhbGwsCiAgcmVnYXJkbGVzcyBvZiBzdWJqZWN0IG9yIHNlbmRlci4KICAtIEV4YW1wbGUgdGhh
+dCBjbGFyaWZpZWQgdGhpczogIldlYiArIERlc2t0b3AgTGljZW5zZSDigJMgVFQgTm9ybXMoUikg
+UHJvCiAgICBCYXNpYyBQYWNrYWdlIGhhcyBiZWVuIHN1Y2Nlc3NmdWxseSB2ZXJpZmllZCBhbmQg
+YWN0aXZhdGVkLiIgZnJvbQogICAgYGdyaWdvcmlhbkB0eXBldHlwZS5vcmdgLCB0byBgc2hheWVA
+c3RhY2tlcnNhdS5jb20uYXVgLCBjYwogICAgYHByQHN0YWNrZXJzYXVzdHJhbGlhLmNvbS5hdSwg
+aW5mb0BzdGFja2Vyc2F1c3RyYWxpYS5jb20uYXVgICh0aHJlYWQKICAgIGAxOWU5NmRhZTExMTVh
+ZmIxYCwgMjAyNi0wNi0wNSkgLSBhIGNsb3Npbmcgbm90aWNlIGluIGEgZm9udC1saWNlbnNpbmcg
+CiAgICBkaXNwdXRlIFNoYXllIGhhbmRsZWQgcGVyc29uYWxseSBpbiB0d28gcmVsYXRlZCB0aHJl
+YWRzIHdpdGggdGhlIHNhbWUKICAgIHNlbmRlci4gU2luY2UgcHJAIHdhcyBvbmx5IGNjJ2QgaGVy
+ZSwgUnVsZSA0IGRvZXNuJ3QgYXBwbHkgdG8gdGhpcwogICAgdGhyZWFkIGluIHRoZSBmaXJzdCBw
+bGFjZTsgU2hheWUgYWxzbyBjb25maXJtZWQgaXQgd291bGQgc2VwYXJhdGVseQogICAgZmFsbCB1
+bmRlciB0aGUgImFscmVhZHkgcGVyc29uYWxseSByZXBsaWVkIiBleGNlcHRpb24gc2luY2UgaXQn
+cyBwYXJ0CiAgICBvZiBhIHNhZ2Egc2hlIGhhbmRsZWQgZGlyZWN0bHkuIExlZnQgdW50b3VjaGVk
+LCBubyBmb3J3YXJkL3N1YnRhc2svCiAgICBhcmNoaXZlLgotICoqQ29uZGl0aW9uKio6IG5vbmUg
+YmV5b25kIHRoZSBleGNlcHRpb24gYW5kIHNjb3BlIGNsYXJpZmljYXRpb24gYWJvdmUgLQogIGV2
+ZXJ5IG90aGVyIGVtYWlsIHF1YWxpZmllcywgcmVnYXJkbGVzcyBvZiBzdWJqZWN0IHdvcmRpbmcg
+KHBpdGNoZXMgYXJyaXZlCiAgdW5kZXIgd2lsZGx5IGRpZmZlcmVudCBzdWJqZWN0czogIkNyZWF0
+b3IgQ29sbGFib3JhdGlvbiDigJMgWCIsICJQUiAmIFRpa1RvawogIGNvbGxhYm9yYXRpb24gb3Bw
+b3J0dW5pdHkiLCBibGFuayBzdWJqZWN0cywgZXRjLikKLSAqKkFjdGlvbioqOgogIDEuIEZvcndh
+cmQgdGhlIGVtYWlsIHRvIGBqb3NlcGhAc3RhY2tlcnNhdS5jb20uYXVgCiAgMi4gQWRkIGEgbmV3
+IHN1YnRhc2ssIG5hbWVkIHdpdGggdGhlICoqc2VuZGVyJ3MgZW1haWwgYWRkcmVzcyoqLCB1bmRl
+cgogICAgIHRoZSBvcGVuIHRhc2sgIlJldmlldyBpbmJvdW5kIGluZmx1ZW5jZXIgcmVxdWVzdHMs
+IGV2YWx1YXRlLCByZXNwb25kIgogICAgIChnaWQgYDEyMTc4NjA4NDk1MDEzNzhgKSBpbiB0aGUg
+IjIuIE1hcmtldGluZyIgQXNhbmEgcHJvamVjdCAoZ2lkCiAgICAgYDEyMTc4NTQ2NDkxNTk1NzNg
+KS4gTG9vayB0aGUgcGFyZW50IHRhc2sgdXAgYnkgbmFtZSB3aXRoaW4gdGhhdAogICAgIHByb2pl
+Y3QgZmlyc3QgKGBzZWFyY2hfdGFza3NgKSByYXRoZXIgdGhhbiB0cnVzdGluZyB0aGUgZ2lkIGJs
+aW5kbHksCiAgICAgaW4gY2FzZSBpdCdzIG1vdmVkIG9yIGJlZW4gcmVjcmVhdGVkOyBvbmx5IGZh
+bGwgYmFjayB0byB0aGUgZ2lkIGFib3ZlCiAgICAgaWYgdGhlIGJ5LW5hbWUgbG9va3VwIGZhaWxz
+LgogIDMuIEFyY2hpdmUgdGhlIGVtYWlsIChgdXBkYXRlX3RocmVhZGAgd2l0aCBgbWFya19kb25l
+OiB0cnVlYCkKLSAqKklkZW1wb3RlbmN5IG5vdGUqKjogc2FtZSBhcyBSdWxlIDMgLSBpZiB0aGUg
+dGhyZWFkIGFscmVhZHkgY29udGFpbnMgYW4KICBvdXRib3VuZCBmb3J3YXJkIHRvIGBqb3NlcGhA
+c3RhY2tlcnNhdS5jb20uYXVgLCBpdCdzIGFscmVhZHkgYmVlbgogIGhhbmRsZWQgKG1hbnVhbGx5
+IG9yIGJ5IGEgcHJpb3IgcnVuKTsganVzdCBhcmNoaXZlIGl0IHdpdGhvdXQgZm9yd2FyZGluZwog
+IG9yIGNyZWF0aW5nIGEgZHVwbGljYXRlIHN1YnRhc2suCi0gKipWYWxpZGF0ZWQqKjogMjAyNi0w
+OC0yNyAtIGZvdW5kIH4yMCBpbmJvdW5kIHByQCBlbWFpbHMuIEFsbCBidXQgMiBoYWQKICBhbHJl
+YWR5IGJlZW4gbWFudWFsbHkgZm9yd2FyZGVkIHRvIGBqb3NlcGhAc3RhY2tlcnNhdS5jb20uYXVg
+IGJ5IFNoYXllCiAgKGFscmVhZHkgYXJjaGl2ZWQsIG5vdGhpbmcgdG8gZG8pLiBUaGUgcmVtYWlu
+aW5nIDIgd2VyZSB0aGUgZXhjZXB0aW9uCiAgY2FzZXMgYWJvdmUgKHBlcnNvbmFsIHJlcGxpZXMs
+IGNvcnJlY3RseSBsZWZ0IHVudG91Y2hlZCkuCiAgRm9yd2FyZCtzdWJ0YXNrK2FyY2hpdmUgd2Fz
+IHRoZW4gZXhlcmNpc2VkIGxpdmUgZW5kLXRvLWVuZCBhZ2FpbnN0IGEKICBnZW51aW5lbHkgdW50
+b3VjaGVkIGVtYWlsICgiSG9tZSBvcmdhbmlzYXRpb24gY29sbGFib3JhdGlvbiB4IENvZGllCiAg
+UnlhbiIgZnJvbSBgY29kaWVyeWFudWdjQGdtYWlsLmNvbWAsIHRocmVhZCBgMWEwNDI4MThjMTEz
+ZmYxYmApOiBmb3J3YXJkZWQKICB0byBgam9zZXBoQHN0YWNrZXJzYXUuY29tLmF1YCwgc3VidGFz
+ayBgY29kaWVyeWFudWdjQGdtYWlsLmNvbWAgY3JlYXRlZAogIHVuZGVyIHRoZSBwYXJlbnQgdGFz
+ayAoZ2lkIGAxMjE3OTMzMTM4NDM0Mjg2YCksIHRocmVhZCBhcmNoaXZlZCAtIGFsbAogIHRocmVl
+IGFjdGlvbnMgY29uZmlybWVkIHN1Y2Nlc3NmdWwuCg==
