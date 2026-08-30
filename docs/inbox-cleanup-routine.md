@@ -29,9 +29,11 @@ current rule actually does.
 
 ## Trigger and schedule
 
-Fires once daily at **6:15am Australia/Sydney time** (before the working
-day starts, after the prior day's mail has fully landed) — `15 20 * * *`
-in UTC, assuming AEST (UTC+10). See the DST caveat below.
+Fires **three times daily — 5am, 12pm, and 3pm ACDT** (the trigger is
+named "Daily Inbox sweep") — `30 1,4,18 * * *` in UTC, assuming ACDT
+(UTC+10:30). See the DST caveat below. (An earlier single-daily version of
+this trigger existed at 6:15am Australia/Sydney time; it's been superseded
+by this three-times-daily one.)
 
 ## Mail tools
 
@@ -71,6 +73,17 @@ or its tools are unavailable, treat that the same as any other tool
 failure under Failure handling (below): don't skip the email silently,
 email Shaye a heads-up.
 
+**Inbox splits**: some rules (e.g. Rule 7) scope themselves to a specific
+Superhuman "split" (a saved view like "Other", "Important", "PR" — not the
+same thing as a label). Use `list_threads` with the `split` parameter to
+scope a search to one; use `list_splits` if you need to confirm a split's
+exact name or filter criteria first.
+
+**Un-spam**: Rule 8 needs to move mail out of Spam. Use Gmail's
+`unmark_thread_spam` (Superhuman Mail has no direct spam-folder browsing
+tool, so check Spam via Gmail's `search_threads` with `in:spam` in the
+query, or Superhuman's `list_threads` with `labels: ["SPAM"]`).
+
 ## Process, each run
 
 1. **Check for pending clarification replies first** (see "Handling
@@ -81,7 +94,10 @@ email Shaye a heads-up.
    (`list_threads`), then fetch each match's full body (`get_thread`) to
    evaluate the rule's actual condition — never decide from a snippet
    alone, since conditions like "N equals M" need the real numbers, and
-   "the body says failed" needs the real wording.
+   "the body says failed" needs the real wording. Some rules depend on
+   another rule's output within the same run — e.g. Rule 8 restores
+   misfiled Spam so Rule 4 can process it — so run any such prerequisite
+   rule before the rule it feeds, not in a fixed numeric order.
 3. **Where a thread satisfies a rule's condition**: perform that rule's
    action(s) in full — e.g. forward-then-archive, or forward-then-subtask-
    then-archive; a rule isn't done until every action it specifies has
@@ -181,11 +197,14 @@ retry within the same run.
 ## Known limitation: daylight saving time
 
 Same caveat as the other routines in this repo: the trigger's cron is
-defined in UTC assuming AEST (UTC+10) year-round. During AEDT (UTC+11,
-roughly early October–early April), the trigger will actually fire at
-7:15am Sydney time instead of 6:15am until the cron offset is manually
-shifted (subtract one hour from the UTC hour: `15 20 * * *` becomes
-`15 19 * * *`, around the first Sunday of October and April each year).
+defined in UTC assuming a fixed offset year-round, not an IANA timezone.
+The current schedule (`30 1,4,18 * * *`) assumes ACDT (UTC+10:30). Outside
+Australian daylight saving (roughly early October–early April), Adelaide
+is actually on ACST (UTC+9:30) — one hour behind — so the trigger will
+fire at 4am/11am/2pm ACST instead of 5am/12pm/3pm until the cron is
+manually shifted forward by one hour for the ACST period: `30 2,5,19 * * *`.
+Whoever owns this trigger needs to flip between these two cron expressions
+each time Australia's daylight saving starts/ends.
 
 ## Validated against a real inbox sweep
 
@@ -206,3 +225,12 @@ Rule 4's forward+subtask+archive action has not yet had a live untouched
 email to run against (Shaye had already manually handled or personally
 replied to everything currently in the pr@ mailbox) — its Asana target
 was confirmed to exist, but keep an eye on its first few real firings.
+
+Rules 5–8 were added and tested 2026-08-30. Rule 5 (Meta ads receipts) and
+Rule 6 (LinkedIn) were both exercised live end-to-end with real matches
+found and correctly handled. Rule 7 (named-sender marketing mail in the
+"Other" split) was validated against 7 real matches, all unambiguous — its
+"if unsure, ask" fallback hasn't yet been exercised against a genuinely
+uncertain case. Rule 8 (un-spam misfiled pr@ inbound) had no live match at
+test time (Spam was empty for that address) — it's unvalidated against a
+real case; keep an eye on its first real firing.

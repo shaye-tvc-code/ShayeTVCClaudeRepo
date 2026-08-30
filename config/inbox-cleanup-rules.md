@@ -61,7 +61,11 @@ an example of that).
   until a rule says otherwise):
   - `customer-service@asana.com` — billing/payment receipts (financial
     record, e.g. "Asana payment confirmation")
-  - `learn@go.asana.com` — Asana's own marketing/onboarding emails
+  - `learn@go.asana.com` — Asana's own marketing/onboarding emails. Note:
+    Rule 7 below separately trashes genuinely-promotional Asana mail found
+    in the "Other" split — that's a distinct rule with its own scope
+    (marketing content generally, not this rule's task-update scope), not
+    a relaxation of this exclusion.
 - **Validated**: 2026-08-25 manual sweep — 11 matching emails found and
   deleted; 1 payment confirmation and 2 marketing emails from the other
   Asana-affiliated senders above were left untouched.
@@ -133,3 +137,89 @@ an example of that).
   to `joseph@stackersau.com.au`, subtask `codieryanugc@gmail.com` created
   under the parent task (gid `1217933138434286`), thread archived — all
   three actions confirmed successful.
+
+## Rule 5 — "Forward Bills to Dext": Meta ads receipts
+
+- **Added**: 2026-08-30
+- **Subject contains**: "Your Meta ads receipt" (sender
+  `noreply@business-updates.facebook.com`, to `shaye@vergecollective.com.au`)
+- **Condition**: none — every matching email qualifies
+- **Action**:
+  1. Forward the email to `tvcollective@dext.cc`
+  2. Mark as done (archive — `update_thread` with `mark_done: true`), not
+     Trash — same reasoning as Rule 3, this is a real financial record
+- **Idempotency note**: same pattern as Rule 3 — check for an existing
+  outbound forward to `tvcollective@dext.cc` in the thread first; if
+  already forwarded (Shaye does some of these manually), just archive.
+- **Validated**: 2026-08-30 — found 9 matching emails; 8 already manually
+  forwarded (one, oddly, to `alwaysforimpact@dext.cc` instead of
+  `tvcollective@dext.cc` — a one-off historical exception, not a pattern
+  to match on). The 1 unforwarded one (thread `1a0477a2e52ef788`) was
+  forwarded to `tvcollective@dext.cc` and archived live — confirmed both
+  actions completed correctly.
+
+## Rule 6 — LinkedIn notifications, trash
+
+- **Added**: 2026-08-30
+- **Sender**: LinkedIn's notification addresses (`notifications-noreply@linkedin.com`,
+  `messages-noreply@linkedin.com`, and other `@linkedin.com` senders)
+- **Scope**: threads labeled `CATEGORY_SOCIAL` (Superhuman also tags these
+  `[Superhuman]/AI/Social`, referred to as "the Social label") — new
+  message alerts, profile-view notices, connection suggestions, "popular
+  in your network" recommendations, profile-completion nudges, etc.
+- **Action**: delete (move to Trash) — no body condition, delete all of
+  them
+- **Validated**: 2026-08-30 — found 8 matching threads across the mailbox
+  (5 currently sitting in the "Other" split, 3 older ones already out of
+  the inbox), all genuine LinkedIn network-activity notifications with no
+  real correspondence content — all 8 deleted.
+
+## Rule 7 — Named-sender marketing mail in "Other" split, trash
+
+- **Added**: 2026-08-30
+- **Scope**: mail sitting in Superhuman's **"Other" split** (the
+  lower-priority/newsletter split, distinct from the main Inbox split)
+  from any of these senders: Asana (any address, not just
+  `no-reply@asana.com` — e.g. `learn@email1.asana.com`), Qantas Business
+  Rewards (`qantasbusinessrewards@loyalty.qantas.com`), Claude Team
+  (`no-reply@email.claude.com`), Calendly (`teamcalendly@send.calendly.com`
+  and similar), Edible Blooms (`@edibleblooms.co.nz` / `@edibleblooms.com.au`)
+- **Condition**: the email must **genuinely look like a promotional-only
+  email** — marketing nudges, feature announcements, tips/lifecycle
+  emails, seasonal campaigns. This is a judgment call, not a mechanical
+  check: read the actual subject/snippet, don't pattern-match on sender
+  alone. If a specific email from one of these senders is transactional,
+  account-critical, or otherwise not clearly "just marketing" — do not
+  trash it under this rule.
+- **Action**: delete (move to Trash)
+- **If unsure** whether a specific email is genuinely promotional: do not
+  guess and do not trash it. Include it in that day's ambiguity/question
+  email (see the routine doc's "Handling ambiguity" protocol) so Shaye can
+  decide, same as any other uncertain case.
+- **Validated**: 2026-08-30 — found 15 threads total in the "Other" split;
+  after excluding the 5 LinkedIn ones (Rule 6) and the 1 Meta ads receipt
+  (Rule 5), 7 matched this rule and were all judged clearly promotional
+  (no ambiguous cases on this pass): "Find your files..." (Asana learn
+  email), "Reward your team" (Qantas Business Rewards double-points
+  promo), "Two new ways to browse the web in Cowork..." (Claude Team
+  product update/marketing), 3 Calendly lifecycle-tip emails, and "Still
+  need to find his Father's Day gift?" (Edible Blooms). All 7 deleted.
+
+## Rule 8 — Un-spam misfiled influencer inbound to pr@
+
+- **Added**: 2026-08-30
+- **Trigger**: check the Spam folder for mail addressed to
+  `pr@stackersaustralia.com.au` that looks like a genuine inbound
+  influencer/creator pitch (the same kind of content Rule 4 handles) that
+  has been misfiled as spam.
+- **Action**: mark it "not spam" (restoring it to the inbox), then let
+  Rule 4 process it normally in the same run — this rule only exists to
+  un-block Rule 4 for mail the spam filter wrongly intercepted; it doesn't
+  duplicate Rule 4's own forward/subtask/archive logic.
+- **Note**: don't un-spam indiscriminately — only mail that genuinely
+  looks like an inbound creator/influencer pitch to pr@. Real spam stays
+  in spam.
+- **Validated**: 2026-08-30 — checked Spam for `pr@stackersaustralia.com.au`
+  mail (both via Gmail's `in:spam` search and Superhuman's `SPAM` label
+  filter); none found at test time, so this rule has not yet had a live
+  example to exercise. Keep an eye on its first real match.
