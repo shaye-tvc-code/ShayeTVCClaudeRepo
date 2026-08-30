@@ -193,6 +193,15 @@ retry within the same run.
 - A rule's documented exception (e.g. Rule 4's "skip if Shaye already
   personally replied") is exactly as binding as its main condition — check
   it every time, not just when it seems likely to apply.
+- **When committing a rule clarification back to this repo** (e.g. after a
+  reply to a question email reveals a new exception): write the file with
+  a normal file-editing tool (Read then Edit/Write) and verify the result
+  is still plain, readable markdown before committing — don't pipe content
+  through any encoding step. A 2026-08-29 trigger run committed
+  `config/inbox-cleanup-rules.md` as a single base64-encoded blob instead
+  of plain text (later found and fixed manually); double-check the diff
+  looks like normal prose, not an opaque block of characters, before
+  `git commit`.
 
 ## Known limitation: daylight saving time
 
