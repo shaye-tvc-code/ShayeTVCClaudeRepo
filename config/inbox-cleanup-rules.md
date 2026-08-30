@@ -97,7 +97,9 @@ an example of that).
 ## Rule 4 — PR mailbox inbound: forward to Joseph + Asana subtask
 
 - **Added**: 2026-08-27
-- **Trigger**: any email received at `pr@stackersaustralia.com.au`
+- **Trigger**: any email received at `pr@stackersaustralia.com.au`, where
+  `pr@stackersaustralia.com.au` is the **primary "To:" recipient** (see
+  scope clarification below).
 - **Exception** (confirmed with Shaye 2026-08-27): skip entirely — do not
   forward, subtask, or archive — if Shaye has **already personally
   replied** to the sender herself (a message in the thread sent by her
@@ -109,9 +111,25 @@ an example of that).
   of pr@ is that most inbound mail is standard creator/influencer pitches
   she wants routed straight to Joseph, but not everything that lands there
   is one of those.
-- **Condition**: none beyond the exception above — every other email
-  qualifies, regardless of subject wording (pitches arrive under wildly
-  different subjects: "Creator Collaboration – X", "PR & TikTok
+- **Scope clarification** (confirmed with Shaye 2026-08-29): "any email
+  received at pr@stackersaustralia.com.au" means pr@ must be the primary
+  **To:** recipient — not merely cc'd. An email where pr@ is only cc'd
+  (someone else is the primary "to") does not trigger Rule 4 at all,
+  regardless of subject or sender.
+  - Example that clarified this: "Web + Desktop License – TT Norms(R) Pro
+    Basic Package has been successfully verified and activated." from
+    `grigorian@typetype.org`, to `shaye@stackersau.com.au`, cc
+    `pr@stackersaustralia.com.au, info@stackersaustralia.com.au` (thread
+    `19e96dae1115afb1`, 2026-06-05) — a closing notice in a font-licensing
+    dispute Shaye handled personally in two related threads with the same
+    sender. Since pr@ was only cc'd here, Rule 4 doesn't apply to this
+    thread in the first place; Shaye also confirmed it would separately
+    fall under the "already personally replied" exception since it's part
+    of a saga she handled directly. Left untouched, no forward/subtask/
+    archive.
+- **Condition**: none beyond the exception and scope clarification above —
+  every other email qualifies, regardless of subject wording (pitches arrive
+  under wildly different subjects: "Creator Collaboration – X", "PR & TikTok
   collaboration opportunity", blank subjects, etc.)
 - **Action**:
   1. Forward the email to `joseph@stackersau.com.au`
