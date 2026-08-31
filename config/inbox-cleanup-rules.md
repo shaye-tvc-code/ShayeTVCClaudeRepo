@@ -241,3 +241,71 @@ an example of that).
   mail (both via Gmail's `in:spam` search and Superhuman's `SPAM` label
   filter); none found at test time, so this rule has not yet had a live
   example to exercise. Keep an eye on its first real match.
+
+## Rule 9 — Flag action-needed mail with the "Shaye" label (last step of the sweep)
+
+- **Added**: 2026-08-30
+- **Runs last**, after every other rule in this file — it only looks at
+  whatever's actually left in the Inbox once Rules 1–8 have already
+  deleted/archived/forwarded what they cover. This rule never deletes,
+  archives, or moves anything — it only adds a label, so it's low-risk by
+  nature.
+- **Label**: `Shaye` — this label already existed before this rule (Shaye
+  uses it manually to track her own action items; there's also a
+  `Shaye/In Motion` sub-label for things actively in progress, which this
+  rule does not set — only the top-level `Shaye` label).
+- **Scope**: threads currently in the Inbox where the **most recent
+  message was not sent by Shaye** (`shaye@vergecollective.com.au` /
+  `shaye@stackersau.com.au`) and reading that message shows it's
+  genuinely awaiting **her personal** reply, decision, or input.
+- **Condition** — read the actual last message, don't pattern-match on
+  labels alone. Superhuman's own `[Superhuman]/AI/Respond` label is a
+  useful signal to prioritize candidates, but it is not sufficient by
+  itself — plenty of `AI/Respond`-labeled threads don't qualify (see
+  exclusions below), and it's not necessary either (a thread can qualify
+  without it).
+  - **Include**: someone is asking her a direct question, requesting a
+    decision or approval only she can give, or needs specific information
+    only she has (legal/company details, a strategic call, a yes/no on a
+    proposal), and no one has answered it yet.
+  - **Exclude — someone else owns the next step**: she's only cc'd for
+    visibility while a teammate (typically Joseph) is the one actually
+    expected to act or reply. Being cc'd on an active thread does not by
+    itself mean she needs to act.
+  - **Exclude — already resolved**: the last message confirms/closes
+    something rather than asking something (e.g. "yes, done", "added as
+    requested") — nothing outstanding for her to do.
+  - **Exclude — automated, not a person asking something**: read
+    receipts/"has read your message" notifications, Google Chat
+    "messaged you while away" or "mentioned you in a space" alerts,
+    calendar accept/decline notices, moderator/spam-digest emails,
+    subscription/payment confirmation notices, and similar automated
+    mail. These aren't a person waiting on her.
+  - **Exclude**: anything already carrying the `Shaye` label (idempotent —
+    don't reprocess or duplicate).
+  - **If genuinely unsure**: default to **not** labeling. Unlike the
+    deletion rules, this one doesn't need to escalate uncertain cases to
+    the daily question email — mislabeling is low-stakes and she can
+    always remove the label — but keep the label meaningful by being
+    conservative rather than over-applying it.
+- **Validated**: 2026-08-30 — reviewed the current Inbox (~50 threads) and
+  applied `Shaye` to 4 genuine matches:
+  - "Re: [#7788519] Re: WrkPod New Concierge Client" (thread
+    `1a0330400e975af1`) — recruiter laid out a sourcing strategy and asked
+    Shaye to confirm it before proceeding
+  - "Need a few details to resubmit the Cloudflare report on the fake
+    Stackers site" (thread `1a03b7859ce3ac8a`) — Joseph needs specific
+    company/legal details only Shaye can provide
+  - "Re: Document shared with you: ...LC Design Strateigc Sync..." (thread
+    `19eb74fde9c80795`) — Joseph asked Shaye for product dimensions
+  - "Point of Contact?" (thread `1a03c3f1a5ba7488`) — Belinda (BTK) asked
+    Shaye a direct question about Shopify visibility and rates
+  
+  Correctly left unlabeled, confirming the exclusion boundaries: "Celebrating
+  25 Years — Stackers Travel Jewellery Box" and "Flag — Mispacked Order
+  #4217" (both cc-only to Shaye, Joseph owns the next step), "[Stackers
+  Finance] Pallas - Agreement Cancellation" (automated confirmation of an
+  already-completed cancellation), "[Stackers Orders] Moderator's spam
+  report" (auto-discards on its own, and the held message was itself
+  spam), and "Set 2s" (Shaye's original question was already answered,
+  nothing outstanding).

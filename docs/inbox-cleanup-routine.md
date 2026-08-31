@@ -84,6 +84,12 @@ exact name or filter criteria first.
 tool, so check Spam via Gmail's `search_threads` with `in:spam` in the
 query, or Superhuman's `list_threads` with `labels: ["SPAM"]`).
 
+**Labeling** (Rule 9): Superhuman Mail `update_thread` with
+`add_labels: ["Shaye"]` (needs the thread's `last_message_id`, from
+`list_threads`/`get_thread`). To read the current Inbox for this step,
+`list_threads` with `labels: ["INBOX"]` — paginate with `limit`/`cursor`
+if the mailbox is large enough to exceed one page.
+
 ## Process, each run
 
 1. **Check for pending clarification replies first** (see "Handling
@@ -116,6 +122,11 @@ query, or Superhuman's `list_threads` with `labels: ["SPAM"]`).
    covers. It does not infer new rules, extend an existing rule's scope,
    or delete "similar-looking" mail on its own initiative — that's a
    human decision, made by adding a new dated rule to the config file.
+6. **Last step, always**: apply Rule 9 (the "Shaye" action-needed label)
+   over whatever's left in the Inbox after every other rule has run. This
+   step only adds a label — it never deletes, archives, forwards, or
+   moves anything — so it's safe to run even when earlier steps hit a
+   failure on an unrelated rule.
 
 ## Handling ambiguity — the email question protocol
 
@@ -243,3 +254,10 @@ found and correctly handled. Rule 7 (named-sender marketing mail in the
 uncertain case. Rule 8 (un-spam misfiled pr@ inbound) had no live match at
 test time (Spam was empty for that address) — it's unvalidated against a
 real case; keep an eye on its first real firing.
+
+Rule 9 (the "Shaye" action-needed label) was added and tested 2026-08-30
+against the live Inbox (~50 threads reviewed) — 4 genuine matches labeled,
+and several correctly-excluded cases confirmed the intended boundaries
+(cc-only visibility vs. Shaye's own action; automated confirmations vs. a
+person actually asking her something). See its "Validated" note in
+`config/inbox-cleanup-rules.md` for the specific threads.
