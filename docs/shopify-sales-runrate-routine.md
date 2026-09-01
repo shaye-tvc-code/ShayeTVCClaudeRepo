@@ -30,8 +30,9 @@ weekly run this is the Sunday just completed.
   number, and skip Steps 1–3's target-relative math. New months' targets
   get added by the user telling Claude the number in chat, which commits
   it to this file — there is no Shopify metafield involved. The file may
-  also have a `stretch_targets` array of `YYYY-MM` keys — see "Stretch
-  targets" below for how this changes Steps 1–3.
+  also have a `stretch_targets` array of `YYYY-MM` keys and a
+  `seasonalized_targets` object of `YYYY-MM` → number — see "Stretch
+  targets" below for how these change Steps 1–3.
 - **Top products / AOV / inventory**: from Shopify analytics, orders, and
   `get-inventory-levels`.
 
@@ -73,12 +74,19 @@ and framing it as a shortfall would be misleading. When this applies:
 - **Step 1**: still report both figures as normal, but label the target
   itself as a stretch target (e.g. "the $92,000 stretch target") so the
   "required to date" figure isn't misread as a realistic pace
-  expectation.
+  expectation. If the same `YYYY-MM` key also appears in
+  `seasonalized_targets`, also state that real underlying number in this
+  section — e.g. "the real target, seasonalised from a $100k/month
+  average, is $36,000" — so the email always surfaces the genuine goal
+  alongside the inflated one, not just the stretch figure on its own.
 - **Steps 2–3**: skip the shortfall framing entirely — don't report a
   shortfall percentage or a "required daily rate to catch up" figure.
   Still report the projected month-end total for reference, but state
   plainly that the target is a deliberate stretch goal (not one the
   business expects to hit) rather than something being "fallen short of."
+  If a `seasonalized_targets` entry exists for the month, you may note
+  how the projection compares to that real number instead (still without
+  a formal shortfall %/catch-up-rate framing).
 - **Step 4** is unaffected.
 
 ## Step 4 — 🔍 Emerging Patterns
