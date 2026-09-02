@@ -12,8 +12,10 @@ and every **Monday at 6am (Australia/Sydney)**, a scheduled Claude session:
 2. Computes the month's run rate against target (see [`docs/shopify-sales-runrate-routine.md`](docs/shopify-sales-runrate-routine.md)
    for the full spec and formulas).
 3. Emails the summary to shaye@vergecollective.com.au.
-4. Archives the previous days' report emails still sitting in the inbox,
-   so only the latest report is visible there.
+
+Previous days' report emails still sitting in the inbox get archived by
+the separate Daily Inbox Cleanup routine (Rule 10 — see below), not by
+this routine itself.
 
 On Tuesday–Friday runs, the "since last report" commentary (Step 4) covers
 the single prior calendar day. On Monday runs, it covers Saturday and Sunday

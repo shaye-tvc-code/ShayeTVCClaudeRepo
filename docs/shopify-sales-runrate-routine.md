@@ -151,26 +151,16 @@ Formatting conventions:
    in the session output that it was drafted, not sent, and why (Gmail's
    connector here has no send action).
 
-## Housekeeping: archive previous days' reports
+## Note: housekeeping lives in the inbox cleanup routine
 
-After the current report has been sent (or drafted, in the fallback case),
-archive clutter from earlier runs so the inbox only ever shows the latest
-report:
-
-1. Search the inbox for prior report threads: Superhuman Mail
-   `list_threads` with `subject_contains: "⭐ Stackers eComm Sales run rate"`
-   and `labels: ["INBOX"]`.
-2. For every matching thread whose `sent_at` date is **not** today's date
-   (i.e. every previous day's report, not the one just sent), archive it:
-   `update_thread` with `mark_done: true` (pass that thread's
-   `last_message_id`).
-3. Only the success-report subject ("⭐ Stackers eComm Sales run rate...")
-   is in scope here — never archive a "⚠️ ... run failed" email this way;
-   those need to stay visible until Shaye has seen them.
-4. This step is best-effort cleanup, not part of the report itself: if it
-   fails partway (e.g. a tool error archiving one thread), don't treat that
-   as a run failure or send a failure-notification email for it — just
-   leave the remaining old threads for the next run to catch.
+Previous days' report emails are archived by **Rule 10** of the separate
+Daily Inbox Cleanup routine (see
+[`config/inbox-cleanup-rules.md`](../config/inbox-cleanup-rules.md)), not by
+this routine itself. This routine's own trigger is bound to a session this
+repo's other sessions can't edit, so a housekeeping step written here
+couldn't actually be applied to its live prompt — Rule 10 does the
+equivalent job instead, since the inbox cleanup routine already sweeps the
+same mailbox multiple times a day.
 
 ## Failure handling
 

@@ -309,3 +309,34 @@ an example of that).
   report" (auto-discards on its own, and the held message was itself
   spam), and "Set 2s" (Shaye's original question was already answered,
   nothing outstanding).
+
+## Rule 10 — Archive previous days' Stackers eComm Sales run rate reports
+
+- **Added**: 2026-09-02
+- **Origin note**: this was originally written as a "HOUSEKEEPING" step
+  directly inside the separate Stackers eComm Sales Run Rate routine's own
+  trigger prompt (see `docs/shopify-sales-runrate-routine.md`), but pasting
+  it into that routine's live instructions returned an error (that
+  Routine is bound to a session this repo's sessions can't edit). Moved
+  here instead — the Daily Inbox Cleanup routine already sweeps the same
+  mailbox multiple times a day, so it can absorb this as an ordinary
+  archive rule.
+- **Trigger**: threads currently in the Inbox whose subject starts with
+  "⭐ Stackers eComm Sales run rate" — the automated report emailed to
+  `shaye@vergecollective.com.au` by the separate Stackers eComm Sales Run
+  Rate routine (weekday and weekly editions).
+- **Condition**: the thread's most recent message was sent on an earlier
+  calendar day than the day this sweep is running — i.e. every report
+  except the most recent one.
+- **Action**: archive (`update_thread` with `mark_done: true`) — never
+  Trash. Never touch the report from today, even if a later run that same
+  day would otherwise catch it once a new one lands.
+- **Explicitly NOT covered**: "⚠️ Stackers eComm Sales run rate – run
+  failed" emails — a different subject from the same routine, used for
+  failure notifications. Those must stay visible in the Inbox until Shaye
+  has seen them; never archive a failure email under this rule.
+- **Validated**: 2026-09-02 — found 7 matching threads in the Inbox at
+  test time: today's report ("⭐ ... – 1 September 2026", thread
+  `1a05eee7dcd152ba`) correctly left alone, and the 6 older ones (dated
+  Aug 6, 9, 19, 20, 26, 27 2026) archived live via `update_thread` —
+  confirmed all 6 left the Inbox and today's report remained.

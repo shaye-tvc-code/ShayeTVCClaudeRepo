@@ -261,3 +261,8 @@ and several correctly-excluded cases confirmed the intended boundaries
 (cc-only visibility vs. Shaye's own action; automated confirmations vs. a
 person actually asking her something). See its "Validated" note in
 `config/inbox-cleanup-rules.md` for the specific threads.
+
+Rule 10 (archive previous days' Sales Run Rate reports) was added and
+tested 2026-09-02 against the live Inbox — 7 matching report threads
+found, the 6 from previous days archived and today's correctly left in
+place. See its "Validated" note in `config/inbox-cleanup-rules.md`.
