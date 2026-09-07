@@ -266,3 +266,10 @@ Rule 10 (archive previous days' Sales Run Rate reports) was added and
 tested 2026-09-02 against the live Inbox — 7 matching report threads
 found, the 6 from previous days archived and today's correctly left in
 place. See its "Validated" note in `config/inbox-cleanup-rules.md`.
+
+Rule 3 was broadened 2026-09-07 after a real miss: a WRKPOD Pty Ltd
+invoice never got forwarded to Dext because the rule originally only
+matched "Ooze Studios" by name. It now matches any vendor's Xero invoice
+addressed "for THE VERGE COLLECTIVE PTY LTD". See its "Scope broadened"
+note in `config/inbox-cleanup-rules.md` for the fix and the still-open
+question of whether to backfill older missed WRKPOD invoices.

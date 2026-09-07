@@ -70,29 +70,60 @@ an example of that).
   deleted; 1 payment confirmation and 2 marketing emails from the other
   Asana-affiliated senders above were left untouched.
 
-## Rule 3 — Ooze Studios invoices, forward to Dext
+## Rule 3 — Vendor invoices via Xero for The Verge Collective, forward to Dext
 
 - **Added**: 2026-08-27
-- **Subject contains**: "from Ooze Studios Pty Ltd for The Verge Collective
-  Pty Ltd" (Xero "invoice is due" notifications; actual sender is
-  `messaging-service@post.xero.com`, to `shaye@vergecollective.com.au`)
-- **Condition**: none — every matching email qualifies
+- **Subject contains**: "for THE VERGE COLLECTIVE PTY LTD" (case-insensitive
+  — matches "for The Verge Collective Pty Ltd", "for THE VERGE COLLECTIVE
+  PTY LTD", etc.). These are Xero "you have a new bill" invoice
+  notifications; actual sender is `messaging-service@post.xero.com`, to
+  `shaye@vergecollective.com.au` / `shaye@stackersau.com.au`. The vendor
+  name varies (e.g. "Invoice INV-1234 from **Ooze Studios Pty Ltd** for
+  THE VERGE COLLECTIVE PTY LTD", "...from **WRKPOD Pty Ltd** for..." —
+  match on the "for THE VERGE COLLECTIVE PTY LTD" part, not the vendor
+  name, which changes per-vendor).
+- **Condition**: none — every matching email qualifies, regardless of
+  vendor.
 - **Action**:
   1. Forward the email to `tvcollective@dext.cc` (Superhuman Mail
      `create_or_update_draft` with `type: "forward"`, a short body like
      "Please process for bookkeeping.", then `send_draft`)
   2. Archive it (`update_thread` with `mark_done: true`) — not Trash; this
      is a real financial record Shaye wants kept, just out of the inbox
-- **Validated**: 2026-08-27 — found 6 matching emails total; 5 had already
-  been manually forwarded to `tvcollective@dext.cc` by Shaye (nothing to
-  do — don't re-forward something already forwarded). The 1 unforwarded
-  one ("August Invoice 2598", thread `1a03946c9c1d17a7`) was forwarded and
-  archived live as the test case — confirmed both actions completed
-  correctly.
 - **Idempotency note**: before forwarding, check whether the thread
   already contains an outbound message to `tvcollective@dext.cc` (Shaye
   forwards some of these manually before the daily sweep runs) — if so,
   just archive it without forwarding again.
+- **Validated**: 2026-08-27 — found 6 matching emails total (all Ooze
+  Studios at the time); 5 had already been manually forwarded to
+  `tvcollective@dext.cc` by Shaye (nothing to do — don't re-forward
+  something already forwarded). The 1 unforwarded one ("August Invoice
+  2598", thread `1a03946c9c1d17a7`) was forwarded and archived live as the
+  test case — confirmed both actions completed correctly.
+- **Scope broadened** (2026-09-07, after a real miss): this rule was
+  originally written matching only "from Ooze Studios Pty Ltd for The
+  Verge Collective Pty Ltd" — narrower than it should have been. A WRKPOD
+  Pty Ltd invoice (Xero, same sender, "September Invoice INV-40183 from
+  WRKPOD Pty Ltd for THE VERGE COLLECTIVE PTY LTD", thread
+  `1a07c3c5199545dc`) was never forwarded to Dext because it didn't
+  mention Ooze Studios, so it never matched. Broadened the subject filter
+  to match on "for THE VERGE COLLECTIVE PTY LTD" alone (vendor-agnostic),
+  since the actual intent was always "any vendor invoicing the company via
+  Xero goes to Dext for bookkeeping," not "Ooze Studios specifically."
+  Fixed live: the WRKPOD invoice above was forwarded to
+  `tvcollective@dext.cc` and archived. Checked the broadened filter
+  against the mailbox's Xero invoice history — it correctly also matches
+  a WRKPOD invoice Shaye had already manually forwarded in May (thread
+  `19e02c7bb949517a`, confirming the idempotency check will just archive
+  it, not re-forward) — no unrelated Xero emails (e.g. Rule 1's Cin7
+  autosync reports) were swept up by the broader match.
+- **Known gap, not yet resolved**: several other WRKPOD invoices between
+  April and August 2026 (INV-34111, INV-37772, INV-39001 — and possibly
+  others) also appear to have never been forwarded to
+  `tvcollective@dext.cc`, predating this rule's broadening. Whether to
+  backfill-forward those old invoices now is a bookkeeping call for Shaye,
+  not something this rule should do automatically — flagged, not
+  actioned.
 
 ## Rule 4 — PR mailbox inbound: forward to Joseph + Asana subtask
 
