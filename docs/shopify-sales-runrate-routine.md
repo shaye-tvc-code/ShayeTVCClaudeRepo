@@ -159,6 +159,17 @@ Formatting conventions:
    in the session output that it was drafted, not sent, and why (Gmail's
    connector here has no send action).
 
+## Note: housekeeping lives in the inbox cleanup routine
+
+Previous days' report emails are archived by **Rule 10** of the separate
+Daily Inbox Cleanup routine (see
+[`config/inbox-cleanup-rules.md`](../config/inbox-cleanup-rules.md)), not by
+this routine itself. This routine's own trigger is bound to a session this
+repo's other sessions can't edit, so a housekeeping step written here
+couldn't actually be applied to its live prompt — Rule 10 does the
+equivalent job instead, since the inbox cleanup routine already sweeps the
+same mailbox multiple times a day.
+
 ## Failure handling
 
 These are unattended, scheduled runs — nobody is watching the session
