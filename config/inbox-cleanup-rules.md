@@ -376,7 +376,8 @@ an example of that).
   Rate routine (weekday and weekly editions).
 - **Condition**: the thread's most recent message was sent on an earlier
   calendar day than the day this sweep is running — i.e. every report
-  except the most recent one.
+  except the most recent one — **AND** (added 2026-09-21, see exception
+  below) the thread has already been read.
 - **Action**: archive (`update_thread` with `mark_done: true`) — never
   Trash. Never touch the report from today, even if a later run that same
   day would otherwise catch it once a new one lands.
@@ -384,6 +385,24 @@ an example of that).
   failed" emails — a different subject from the same routine, used for
   failure notifications. Those must stay visible in the Inbox until Shaye
   has seen them; never archive a failure email under this rule.
+- **Exception — only archive reports Shaye has actually read** (added
+  2026-09-21, direct instruction from Shaye): Shaye replied to a run-failed
+  notification email to say the "1–17 September" run rate report (thread
+  `1a0b0f86da836146`) had been archived by this rule before she'd had a
+  chance to read it, and asked that a report only be archived once she's
+  actually read it. From this date on, an earlier-day report that is still
+  **unread** must be left in the Inbox (not archived) even though it's no
+  longer the most recent report — check the thread's read/unread status
+  (`is_unread` via `list_threads`/`get_thread`) before archiving, not just
+  its date. Re-check unread previous-day reports on later runs once they've
+  been read.
+  - Several older previous-day reports were found already archived while
+    still unread at the time this exception was added (e.g. threads
+    `1a0abd1f47727f4c`, `1a09c5dcd5dbd369`, `1a08cebe85cb5297`,
+    `1a087c6295afdfc0`, `1a0829f4d5517f12`) — these were left as-is
+    (archive is recoverable and Shaye didn't ask for them to be restored,
+    only for the behavior to change going forward); flagged here rather
+    than bulk-restored on this rule's own initiative.
 - **Validated**: 2026-09-02 — found 7 matching threads in the Inbox at
   test time: today's report ("⭐ ... – 1 September 2026", thread
   `1a05eee7dcd152ba`) correctly left alone, and the 6 older ones (dated
