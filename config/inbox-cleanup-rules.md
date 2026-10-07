@@ -40,6 +40,13 @@ an example of that).
   These always describe a failure and are never deleted (covered by the
   exception above; they also don't match this rule's subject filter in the
   first place).
+- **Exception to the exception-list — "completed, no records processed"**
+  (added 2026-10-07, confirmed with Shaye by reply "yes"): a report whose
+  body reads "Xero auto-sync has been completed. No records processed."
+  (no "Total records processed" / "Total successfully processed records"
+  counts at all, and not "failed") is also deleted (Trash). The "failed"
+  override above still applies. First applied live 2026-10-07 (thread
+  `1a10e10e2e93a4ac`).
 - **Validated**: 2026-08-25 manual sweep of the live inbox — 6 "Autosync
   daily report" emails found: 4 completed with matching counts (deleted:
   58/58, 1/1, 9/9, 6/6), 1 completed with mismatched counts 48≠40 (kept —
@@ -142,6 +149,16 @@ an example of that).
     Verge Collective Pty Ltd for AUD 771.56" (thread `1a0863a0fa463f81`),
     was forwarded to `tracey@jog.com.au` and archived live — confirmed
     both actions completed correctly.
+- **Subject variant — "for The Verge Collective" without "Pty Ltd"**
+  (added 2026-10-07, confirmed with Shaye by reply "yes"): Xero
+  remittance-advice emails whose subject ends "...for The Verge Collective
+  for AUD N" (no "Pty Ltd") are treated as covered by the remittance
+  exception above — forward to `tracey@jog.com.au`, then archive (same
+  idempotency check). First applied live 2026-10-07 ("[Stackers Finance]
+  Payment has been made by My Home Storage Pty Ltd for The Verge
+  Collective for AUD 25,040.93", thread `1a10de65e69f7e52`). Scope is
+  still limited to remittance-advice bodies ("Here's your remittance
+  advice for payment of AUD ..."), not any subject lacking "Pty Ltd".
 
 ## Rule 4 — PR mailbox inbound: forward to Joseph + Asana subtask
 
