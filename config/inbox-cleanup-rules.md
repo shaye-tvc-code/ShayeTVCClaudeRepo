@@ -193,6 +193,14 @@ an example of that).
     fall under the "already personally replied" exception since it's part
     of a saga she handled directly. Left untouched, no forward/subtask/
     archive.
+- **Scope clarification — Bcc'd pr@** (added 2026-10-07, confirmed with
+  Shaye by reply "Emails sent directly to pr@ need to follow the forward to
+  Joseph rule"): a message addressed To: the sender's own address with
+  `pr@stackersaustralia.com.au` only in Bcc counts as "sent directly to
+  pr@" — Rule 4 applies (forward to Joseph, subtask, archive, with the
+  usual idempotency check). Resolves the 2026-09-28 question about threads
+  `1a0e1f6145d2a5eb` and `1a0d88f1e7a4b196` (both already forwarded to
+  Joseph manually on 2026-10-02, so nothing further was needed).
 - **Condition**: none beyond the exception and scope clarification above —
   every other email qualifies, regardless of subject wording (pitches arrive
   under wildly different subjects: "Creator Collaboration – X", "PR & TikTok
