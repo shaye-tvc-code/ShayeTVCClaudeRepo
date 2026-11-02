@@ -2,7 +2,24 @@
   "permissions": {
     "allow": [
       "mcp__Superhuman_Mail__create_or_update_draft",
-      "mcp__Superhuman_Mail__send_draft"
+      "mcp__Superhuman_Mail__send_draft",
+      "mcp__Superhuman_Mail__list_accounts",
+      "mcp__Superhuman_Mail__list_threads",
+      "mcp__Superhuman_Mail__get_thread",
+      "mcp__Superhuman_Mail__get_message",
+      "mcp__Superhuman_Mail__get_draft_send_status",
+      "mcp__Shopify__graphql_query",
+      "mcp__Shopify__graphql_schema",
+      "mcp__Shopify__graphql_mutation",
+      "mcp__Shopify__get-shop-info",
+      "mcp__Asana__search_tasks",
+      "mcp__Asana__get_tasks",
+      "mcp__Asana__get_task",
+      "mcp__Asana__get_task_stories",
+      "mcp__Asana__get_user",
+      "mcp__Asana__get_users",
+      "mcp__Asana__create_tasks",
+      "mcp__Asana__add_comment"
     ]
   }
 }
