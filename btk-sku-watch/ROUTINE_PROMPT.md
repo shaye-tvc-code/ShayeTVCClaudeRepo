@@ -7,7 +7,7 @@
 - Two scheduled tasks (times are Adelaide time, so daylight saving is handled):
   1. **Full run**: `CRON_TZ=Australia/Adelaide 0 6 * * *`. Prompt: `Read btk-sku-watch/ROUTINE_PROMPT.md and follow the Routine section. Run type: FULL.`
   2. **Confirmations**: `CRON_TZ=Australia/Adelaide 0 9,12,15,18 * * *`. Prompt: `Read btk-sku-watch/ROUTINE_PROMPT.md and follow the Routine section. Run type: CONFIRMATIONS ONLY.`
-- Rollout order: `mode` = `chat_test` (interactive test in a chat, nothing sent or changed), then `live_test` (real emails and Asana, Shopify change simulated), then `live`. Change `mode` in `sku_watchlist.json` and merge before each stage.
+- Rollout order: `mode` = `chat_test` (interactive test in a chat, nothing sent or changed), then `live_test` (everything real, labelled as a test), then `live`. Change `mode` in `sku_watchlist.json` and merge before each stage.
 
 ---
 
@@ -140,7 +140,14 @@ D1. **PROPOSAL email** to `joseph_email` (if not already sent):
   - `Available now: BTK <x>, Precision <y>, Total <total>`
   - `Fulfilment after switch: <fulfilment line>`
   - The admin link.
-  - `Reply CONFIRM to this email and I will make the change in Shopify and reply here once done.`
+  - This "How to reply" block, word for word:
+    ```
+    HOW TO REPLY
+    - To approve: press Reply (not a new email) in this thread, from joseph@stackersau.com.au, and make CONFIRM the first word of your reply. I check for replies at 9am, 12pm, 3pm and 6pm (Adelaide time) and the next morning at 6am. I will change the SKU in Shopify and reply "DONE" in this thread.
+    - Not ready, or something looks wrong: reply in this thread with anything that does not start with CONFIRM (e.g. "HOLD - checking stock"). I will make no change, and Shaye will follow up.
+    - Replies from any other address, or sent as a new email, are not read.
+    - Feedback or questions about this routine: email Shaye separately at shaye@vergecollective.com.au.
+    ```
 
 D2. **Asana task** (if there isn't already an incomplete task with this old SKU in the title). If the proposal email was sent in an earlier run, find its thread ID in sent mail.
 - Project `asana_project_gid`, assignee `asana_assignee_email`, due today.
@@ -150,7 +157,7 @@ D2. **Asana task** (if there isn't already an incomplete task with this old SKU 
   - Old SKU / new SKU / product / admin link
   - Fulfilment after switch: (same wording as the email)
   - Steps:
-    1. Reply CONFIRM to the email.
+    1. Reply in the email thread (Reply, not a new email, from joseph@stackersau.com.au) with CONFIRM as the first word. Anything else means no change.
     2. Routine changes the Shopify SKU and replies "DONE" in the same thread with links (cc Dave and Annalise).
     3. Routine emails Dave at Precision (cc you and Annalise) confirming the change.
     4. Spot check the product in Shopify (SKU, stock at location, product still active).
@@ -180,15 +187,13 @@ D2. **Asana task** (if there isn't already an incomplete task with this old SKU 
 - **Test scenarios.** The person may set pretend stock figures (e.g. "pretend JB73761 is BTK 0, Precision 0"). Use them instead of the real figures, and label them as simulated in the run log.
 - Before each block of simulated writes, say which step and case you're in, so the logic can be checked.
 
-### `live_test`: real emails and Asana, Shopify change simulated, clearly labelled as a test
+### `live_test`: everything real, clearly labelled as a test
 
-- Emails are really sent and Asana tasks and comments are really created.
-- **The Shopify SKU is NOT changed.** At step A3.4, skip the change. At A3.5, treat the read-back as showing the new SKU. Say in the run log that the change was simulated.
+- Everything happens for real: emails are sent, Asana tasks and comments are created, and the Shopify SKU is really changed after Joseph's CONFIRM.
 - Every email subject starts with `[TEST] `.
 - Every email body starts with this paragraph, before anything else (including the capitals line in the PROPOSAL):
-  `LIVE TEST: This email comes from a new automated Claude routine that is being tested. No SKU is actually changed in Shopify during this test. Please do not reply to this thread with feedback or concerns; email Shaye separately at shaye@vergecollective.com.au.`
-  - In the PROPOSAL only, add: `Joseph: to continue the test, reply CONFIRM in this thread as normal.`
-  - In the DONE reply and the DAVE email, say `TEST ONLY: the SKU was not actually changed in Shopify.` In the DAVE email, ask Dave only to acknowledge receipt instead of confirming the WMS sync.
+  `LIVE TEST: This email comes from a new automated Claude routine that is being tested. The action described below is real. Please do not reply to this thread with feedback or concerns; email Shaye separately at shaye@vergecollective.com.au.`
+  - In the PROPOSAL only, add: `Joseph: to continue the test, follow the "How to reply" instructions below as normal.`
 - Footnote: `This is a live test of an automated Claude Code routine. Please send feedback or concerns to Shaye separately at shaye@vergecollective.com.au, not as a reply to this thread.`
 - Asana task titles end with ` [TEST]`, and descriptions start with `LIVE TEST of the BTK SKU routine.`
 

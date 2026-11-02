@@ -1,6 +1,6 @@
 {
   "mode": "chat_test",
-  "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = real emails + Asana labelled as a test, Shopify SKU change simulated | live = normal operation",
+  "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = everything real (incl. Shopify SKU change), every email labelled as a test | live = normal operation",
 
   "shopify_location": "BTK",
   "precision_location": "Precision",
