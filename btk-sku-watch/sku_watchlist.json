@@ -1,0 +1,62 @@
+{
+  "mode": "live_test",
+  "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = everything real (incl. Shopify SKU change), every email labelled as a test | live = normal operation",
+
+  "shopify_location": "BTK",
+  "precision_location": "Precision",
+  "warning_threshold_available": 2,
+
+  "send_from_account": "shaye@vergecollective.com.au",
+  "joseph_email": "joseph@stackersau.com.au",
+  "feedback_name": "Shaye",
+  "feedback_email": "shaye@vergecollective.com.au",
+  "dave_email": "David Arvaji <david.arvaji@thepg.com.au>",
+  "sku_change_notify_cc": [
+    "joseph@stackersau.com.au",
+    "Annalise Mclean <info@corabookkeeping.com.au>"
+  ],
+  "done_reply_cc": [
+    "David Arvaji <david.arvaji@thepg.com.au>",
+    "Annalise Mclean <info@corabookkeeping.com.au>"
+  ],
+
+  "asana_project_gid": "1217854156406741",
+  "asana_project_name": "3. Operations",
+  "asana_assignee_email": "joseph@stackersau.com.au",
+
+  "watch_rule": "All active Shopify variants whose SKU starts with JB, plus 80402",
+  "successors": {
+    "JB73761": {
+      "to": "73761",
+      "successor_stock_at_btk": false,
+      "container_qty": 120
+    },
+    "JB73764": {
+      "to": "73764",
+      "successor_stock_at_btk": true,
+      "container_qty": 84
+    },
+    "JB73771": {
+      "to": "73771",
+      "successor_stock_at_btk": true,
+      "container_qty": 200
+    },
+    "JB73789": {
+      "to": "73789",
+      "successor_stock_at_btk": true,
+      "container_qty": 192
+    },
+    "80402": {
+      "to": "70958",
+      "successor_stock_at_btk": false,
+      "container_qty": 48
+    }
+  },
+  "no_successor": {
+    "JB75386": "Discontinue when sold out",
+    "JB75423": "Discontinue when sold out",
+    "JB73677": "Replenish when needed (not immediate); expected to be last JB SKU cleared",
+    "JB70950": "No successor; reactivated in Shopify 2 Nov 2026",
+    "JB74419": "No successor; reactivated in Shopify 2 Nov 2026"
+  }
+}
