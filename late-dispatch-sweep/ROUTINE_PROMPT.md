@@ -6,7 +6,7 @@
 - Connectors on the routine: **Shopify** and **Google Sheets**. Remove all others. No service account, API token or secret is needed: the routine reads and writes as you, through the connectors.
 - Schedule: `CRON_TZ=Australia/Melbourne 0 7 * * *` (every day at 7:00am Melbourne; daylight saving is handled). The routine skips every other day by itself (see step 1), so it does the work every second day.
 - Prompt: `Read late-dispatch-sweep/ROUTINE_PROMPT.md and follow the Routine section.`
-- Rollout: `mode` in `late-dispatch-sweep/config.json` starts as `dry_run` (reads everything, prints the plan, writes nothing to the sheets). Check one or two run logs, then change it to `live` and merge.
+- Mode: `mode` in `late-dispatch-sweep/config.json` is `live` (writes to the sheets). Set it to `dry_run` to read and log without writing.
 - Pause: open the routine and turn it off (or set `mode` to `dry_run` to keep the logs without writing).
 
 ---

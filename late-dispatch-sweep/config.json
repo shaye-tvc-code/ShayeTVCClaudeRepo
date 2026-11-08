@@ -1,5 +1,5 @@
 {
-  "mode": "dry_run",
+  "mode": "live",
   "timezone": "Australia/Melbourne",
   "promise_business_days": 2,
   "lookback_days": 30,
