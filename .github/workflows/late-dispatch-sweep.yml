@@ -1,0 +1,68 @@
+name: Late dispatch sweep
+
+# Every second day at 07:00 Melbourne time.
+# GitHub cron is UTC only, so it fires at both 20:00 and 21:00 UTC every day
+# (07:00 Melbourne in daylight saving and in standard time respectively). The
+# script keeps only the firing that is 07:00 in Melbourne on a run day (every
+# 2 days from schedule.anchor_date in config.json) and exits quietly otherwise.
+on:
+  schedule:
+    - cron: "0 20 * * *"
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run prints the plan only; live writes to the sheets"
+        type: choice
+        options: [dry-run, live]
+        default: dry-run
+
+permissions:
+  contents: read
+
+concurrency:
+  group: late-dispatch-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: late-dispatch-sweep
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+
+      - name: Run sweep
+        env:
+          EVENT: ${{ github.event_name }}
+          CRON: ${{ github.event.schedule }}
+          MANUAL_MODE: ${{ inputs.mode }}
+          # Repository variable: "live", "dry-run" (default when unset) or "off" (paused).
+          SCHEDULED_MODE: ${{ vars.LATE_DISPATCH_MODE }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then MODE="$MANUAL_MODE"; else MODE="${SCHEDULED_MODE:-dry-run}"; fi
+          echo "Mode: $MODE"
+          if [ "$MODE" = "off" ]; then echo "Paused (LATE_DISPATCH_MODE=off)."; exit 0; fi
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          printf '%s' "$GOOGLE_SA_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          args=()
+          if [ "$EVENT" = "schedule" ]; then args+=(--scheduled-cron "$CRON"); fi
+          if [ "$MODE" != "live" ]; then args+=(--dry-run); fi
+          python sweep.py "${args[@]}"
+
+      - name: Keep run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: late-dispatch-log-${{ github.run_id }}
+          path: late-dispatch-sweep/logs/*.txt
+          if-no-files-found: ignore
+          retention-days: 90

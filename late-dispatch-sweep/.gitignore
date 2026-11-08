@@ -1,0 +1,4 @@
+logs/*.txt
+.venv/
+__pycache__/
+*.json.key
