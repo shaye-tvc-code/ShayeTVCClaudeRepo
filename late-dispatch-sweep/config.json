@@ -1,33 +1,29 @@
 {
-  "shopify": {
-    "store": "pivotpointau.myshopify.com",
-    "api_version": "2026-10",
-    "lookback_days": 30,
-    "page_size": 100
-  },
+  "mode": "dry_run",
   "timezone": "Australia/Melbourne",
   "promise_business_days": 2,
+  "lookback_days": 30,
+  "schedule": { "every_n_days": 2, "anchor_date": "2026-11-10" },
   "location_to_3pl": {
     "BTK": "BTK",
     "Precision": "Precision",
     "New3PL": "Precision"
   },
+  "cutoffs": {
+    "BTK": "12:00",
+    "Precision": "06:00"
+  },
   "fault_log": {
     "spreadsheet_id": "1B09oeIVXPdwKuBtc4UsSeF5_K5z_czdDgh7gUMw7xGk",
     "tab": "Late dispatch",
-    "header_row": 1,
+    "sheet_id": 900100,
     "first_data_row": 2
   },
   "btk_register": {
     "spreadsheet_id": "1Ft40Pz5aW5yVD5gsz3lUeRtDvdXiYcDKMS3zhOIXQOg",
     "tab": "Late dispatch",
-    "header_row": 8,
-    "first_data_row": 9,
-    "only_3pl": "BTK"
+    "sheet_id": 900200,
+    "first_data_row": 9
   },
-  "schedule": {
-    "local_hour": 7,
-    "every_n_days": 2,
-    "anchor_date": "2026-11-10"
-  }
+  "logs_branch": "claude/late-dispatch-logs"
 }

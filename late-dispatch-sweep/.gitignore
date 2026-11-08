@@ -1,4 +1,5 @@
+work/
 logs/*.txt
 .venv/
 __pycache__/
-*.json.key
+.pytest_cache/

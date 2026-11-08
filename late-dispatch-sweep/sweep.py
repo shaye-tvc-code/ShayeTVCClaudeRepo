@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
-"""Late dispatch sweep for Stackers Australia.
+"""Offline helper for the late dispatch sweep routine (Stackers Australia).
 
-Finds Shopify online orders that missed the "dispatch within 2 business days"
-promise and upserts them into two Google Sheets:
+The routine (see ROUTINE_PROMPT.md) reads Shopify and the two Google Sheets
+through the Claude connectors and saves what it read into work/. This script
+does the date maths and builds the exact sheet edits. It never talks to
+Shopify or Google and needs no keys: standard library only.
 
-  * Order Fault Log      -> tab "Late dispatch" (internal, every 3PL)
-  * BTK Service Register -> tab "Late dispatch" (shared with BTK, BTK only)
+Commands (run from the repo root):
+  python3 late-dispatch-sweep/sweep.py should-run          RUN or SKIP (every second day)
+  python3 late-dispatch-sweep/sweep.py stale               open sheet rows to look up in Shopify
+  python3 late-dispatch-sweep/sweep.py plan                print the plan, write work/*_requests.json
+  python3 late-dispatch-sweep/sweep.py verify              check work/*_after.json read-backs
+  python3 late-dispatch-sweep/sweep.py finish --status ok  write logs/YYYY-MM-DD.txt and push it
 
-Shopify is read only. The sheets are only ever appended to or have specific
-blank cells filled in; people's notes, comments and manual statuses are never
-changed and rows are never deleted.
-
-Usage:
-  python sweep.py --dry-run        # print the plan, write nothing
-  python sweep.py                  # real run: write, verify, log
-  python sweep.py --whoami         # print the service account email
-
-Environment:
-  SHOPIFY_ADMIN_TOKEN              Admin API token (read_orders, read_fulfillments,
-                                   read_locations). Never printed or stored.
-  GOOGLE_APPLICATION_CREDENTIALS   Path to the service account key JSON.
+Input files in late-dispatch-sweep/work/:
+  orders.txt         one Shopify order per line (format: see parse_order_line)
+  fault_log.json     get_values result of 'Late dispatch'!A1:N  (Order Fault Log)
+  btk.json           get_values result of 'Late dispatch'!A1:L  (BTK Service Register)
+  meta.json          {"fault_log": {"row_count": N, "revision_id": "..."},
+                      "btk": {"row_count": N, "revision_id": "..."}}
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
-import os
 import re
+import shutil
+import subprocess
 import sys
-import time
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 HERE = Path(__file__).resolve().parent
+WORK = HERE / "work"
 SHEETS_EPOCH = dt.date(1899, 12, 30)
 ERROR_MARKERS = ("#REF!", "#VALUE!", "#NAME?", "#N/A")
 
-FL_OPEN = "Open – overdue"          # en dash, matches the sheet's dropdown
+FL_OPEN = "Open – overdue"          # en dash, as in the sheet's dropdown
 FL_LATE = "Dispatched late"
-FL_PROTECTED = {"Customer contacted", "Raised with 3PL", "Closed"}
 BTK_OPEN = "Not yet dispatched"
 BTK_LATE = "Dispatched late"
 
@@ -53,12 +53,10 @@ class SweepError(Exception):
 # Dates and business days
 # --------------------------------------------------------------------------
 
-def to_local_date(ts: str | None, tz: ZoneInfo) -> dt.date | None:
-    """Shopify UTC ISO timestamp -> local (Melbourne) calendar date."""
-    if not ts:
+def to_local(ts: str | None, tz: ZoneInfo) -> dt.datetime | None:
+    if not ts or ts == "-":
         return None
-    t = dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    return t.astimezone(tz).date()
+    return dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(tz)
 
 
 def is_business_day(d: dt.date, holidays: set[dt.date]) -> bool:
@@ -66,9 +64,8 @@ def is_business_day(d: dt.date, holidays: set[dt.date]) -> bool:
 
 
 def workday(start: dt.date, days: int, holidays: set[dt.date]) -> dt.date:
-    """Same result as Google Sheets =WORKDAY(start, days, holidays) for days > 0."""
-    d = start
-    left = days
+    """=WORKDAY(start, days, holidays) for days >= 1."""
+    d, left = start, days
     while left > 0:
         d += dt.timedelta(days=1)
         if is_business_day(d, holidays):
@@ -77,38 +74,43 @@ def workday(start: dt.date, days: int, holidays: set[dt.date]) -> dt.date:
 
 
 def networkdays(start: dt.date, end: dt.date, holidays: set[dt.date]) -> int:
-    """Same as =NETWORKDAYS(start, end, holidays) for start <= end."""
+    """=NETWORKDAYS(start, end, holidays)."""
     if start > end:
         return -networkdays(end, start, holidays)
-    n = 0
-    d = start
+    n, d = 0, start
     while d <= end:
-        if is_business_day(d, holidays):
-            n += 1
+        n += is_business_day(d, holidays)
         d += dt.timedelta(days=1)
     return n
+
+
+def received_by_3pl(order_dt: dt.datetime, cutoff: dt.time, holidays: set[dt.date]) -> dt.date:
+    """Order date if it's a business day and the time is before the cut-off,
+    otherwise the next business day. Matches the sheets' column formula."""
+    d = order_dt.date()
+    t = order_dt.time().replace(second=0, microsecond=0)
+    if is_business_day(d, holidays) and t < cutoff:
+        return d
+    return workday(d, 1, holidays)
 
 
 def date_to_serial(d: dt.date) -> int:
     return (d - SHEETS_EPOCH).days
 
 
-def serial_to_date(n: float) -> dt.date:
-    return SHEETS_EPOCH + dt.timedelta(days=int(n))
+def time_to_fraction(t: dt.time) -> float:
+    return (t.hour * 60 + t.minute) / 1440
 
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%a %d %b %Y", "%d %b %Y", "%d %B %Y", "%a %d %B %Y")
 
 
 def parse_sheet_date(v) -> dt.date | None:
-    """A cell value (serial number or text) -> date. Blank -> None."""
-    if v is None or v == "":
+    if v is None or str(v).strip() == "":
         return None
     if isinstance(v, (int, float)):
-        return serial_to_date(v)
+        return SHEETS_EPOCH + dt.timedelta(days=int(v))
     s = str(v).strip()
-    if not s:
-        return None
     for fmt in _DATE_FORMATS:
         try:
             return dt.datetime.strptime(s, fmt).date()
@@ -125,315 +127,242 @@ def short_date(d: dt.date) -> str:
     return f"{d.day} {d.strftime('%b %Y')}"     # 8 Nov 2026
 
 
-# --------------------------------------------------------------------------
-# Shopify
-# --------------------------------------------------------------------------
-
-ORDER_FIELDS = """
-  name
-  createdAt
-  cancelledAt
-  tags
-  displayFulfillmentStatus
-  purchasingEntity { __typename }
-  fulfillments(first: 5) { createdAt status location { name } }
-  fulfillmentOrders(first: 5) { nodes { assignedLocation { name } } }
-  lineItems(first: 50) { nodes { requiresShipping } }
-"""
-
-ORDERS_QUERY = """
-query Orders($first: Int!, $after: String, $q: String) {
-  orders(first: $first, after: $after, query: $q, sortKey: CREATED_AT) {
-    pageInfo { hasNextPage endCursor }
-    nodes { %s }
-  }
-}
-""" % ORDER_FIELDS
-
-
-class Shopify:
-    def __init__(self, store: str, api_version: str, token: str):
-        import requests  # local import so tests don't need it
-        self._requests = requests
-        self.url = f"https://{store}/admin/api/{api_version}/graphql.json"
-        self.headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
-
-    def _post(self, query: str, variables: dict) -> dict:
-        for attempt in range(6):
-            try:
-                r = self._requests.post(self.url, headers=self.headers,
-                                        json={"query": query, "variables": variables}, timeout=60)
-            except self._requests.RequestException as e:
-                if attempt == 5:
-                    raise SweepError(f"Shopify request failed: {e.__class__.__name__}") from None
-                time.sleep(2 ** attempt)
-                continue
-            if r.status_code in (429, 502, 503, 504):
-                time.sleep(2 ** attempt)
-                continue
-            if r.status_code == 401 or r.status_code == 403:
-                raise SweepError(f"Shopify refused the token (HTTP {r.status_code}). "
-                                 "Check SHOPIFY_ADMIN_TOKEN and the app's scopes.")
-            if r.status_code != 200:
-                raise SweepError(f"Shopify returned HTTP {r.status_code}: {r.text[:300]}")
-            body = r.json()
-            errs = body.get("errors")
-            if errs:
-                codes = {(e.get("extensions") or {}).get("code") for e in errs if isinstance(e, dict)}
-                if "THROTTLED" in codes:
-                    time.sleep(2 ** attempt)
-                    continue
-                if "MAX_COST_EXCEEDED" in codes:
-                    raise _CostTooHigh()
-                msg = "; ".join(e.get("message", str(e)) if isinstance(e, dict) else str(e) for e in errs)
-                raise SweepError(f"Shopify GraphQL error: {msg}")
-            return body["data"]
-        raise SweepError("Shopify kept throttling or failing after 6 attempts")
-
-    def orders(self, search: str, page_size: int) -> list[dict]:
-        out: list[dict] = []
-        after = None
-        size = page_size
-        while True:
-            try:
-                data = self._post(ORDERS_QUERY, {"first": size, "after": after, "q": search})
-            except _CostTooHigh:
-                if size <= 10:
-                    raise SweepError("Shopify query cost too high even at 10 orders per page")
-                size //= 2
-                continue
-            conn = data["orders"]
-            out.extend(conn["nodes"])
-            if not conn["pageInfo"]["hasNextPage"]:
-                return out
-            after = conn["pageInfo"]["endCursor"]
-
-
-class _CostTooHigh(Exception):
-    pass
+def hhmm(t: dt.time) -> str:
+    return t.strftime("%H:%M")
 
 
 # --------------------------------------------------------------------------
-# Order evaluation
+# Orders
 # --------------------------------------------------------------------------
+
+def parse_order_line(line: str) -> dict:
+    """One order per line, fields separated by ' | ':
+
+      name | createdAt | cancelledAt | tags | purchasingEntity | shippable | fulfilments | assigned
+
+      name             #5086
+      createdAt        2026-11-04T07:27:03Z (UTC, as Shopify returns it)
+      cancelledAt      timestamp or -
+      tags             comma-separated, or -
+      purchasingEntity Customer or PurchasingCompany (the __typename), or -
+      shippable        Y if any line item has requiresShipping true, else N
+      fulfilments      createdAt@status@location;createdAt@status@location... or -
+      assigned         first fulfillmentOrders assignedLocation name, or -
+    """
+    p = [x.strip() for x in line.split(" | ")]
+    if len(p) != 8:
+        raise SweepError(f"orders.txt line has {len(p)} fields, expected 8: {line!r}")
+    name, created, cancelled, tags, pe, ship, fuls, assigned = p
+    fl = []
+    if fuls != "-":
+        for f in fuls.split(";"):
+            parts = f.split("@", 2)
+            if len(parts) != 3:
+                raise SweepError(f"Bad fulfilment {f!r} in line {line!r}")
+            fl.append({"createdAt": parts[0], "status": parts[1], "location": parts[2]})
+    if ship not in ("Y", "N"):
+        raise SweepError(f"shippable must be Y or N in line {line!r}")
+    return {"name": name, "createdAt": created, "cancelledAt": None if cancelled == "-" else cancelled,
+            "tags": [] if tags == "-" else [t.strip() for t in tags.split(",")],
+            "purchasingEntity": None if pe == "-" else pe, "shippable": ship == "Y",
+            "fulfillments": fl, "assigned": None if assigned == "-" else assigned}
+
+
+def load_orders(path: Path) -> dict[int, dict]:
+    out = {}
+    for line in path.read_text().splitlines():
+        if line.strip() and not line.startswith("#!"):
+            o = parse_order_line(line)
+            out[order_number(o["name"])] = o
+    return out
+
 
 @dataclass
 class Order:
     number: int
-    name: str
-    order_date: dt.date
+    placed: dt.datetime          # Melbourne
     due: dt.date
     dispatched: dt.date | None
     cancelled: dt.date | None
     location: str | None
     tpl: str | None
     late: bool
-    excluded: str | None = None    # reason, if excluded
+    excluded: str | None = None
+
+    @property
+    def order_date(self) -> dt.date:
+        return self.placed.date()
 
 
-def order_number(name_or_cell) -> int | None:
-    if name_or_cell is None or name_or_cell == "":
+def order_number(v) -> int | None:
+    if v is None or str(v).strip() == "":
         return None
-    if isinstance(name_or_cell, (int, float)):
-        return int(name_or_cell)
-    digits = re.sub(r"\D", "", str(name_or_cell))
+    if isinstance(v, (int, float)):
+        return int(v)
+    digits = re.sub(r"\D", "", str(v))
     return int(digits) if digits else None
 
 
 def map_3pl(location: str | None, mapping: dict[str, str]) -> tuple[str | None, bool]:
-    """Returns (3PL name, was_mapped)."""
     if not location:
         return None, False
-    if location in mapping:
-        return mapping[location], True
-    low = {k.lower(): v for k, v in mapping.items()}
-    if location.lower() in low:
-        return low[location.lower()], True
+    for k, v in mapping.items():
+        if k.lower() == location.lower():
+            return v, True
     return location, False
 
 
 def evaluate(raw: dict, holidays: set[dt.date], today: dt.date, tz: ZoneInfo,
              mapping: dict[str, str], promise_days: int) -> Order:
-    num = order_number(raw["name"])
-    odate = to_local_date(raw["createdAt"], tz)
-    due = workday(odate, promise_days, holidays)
-
-    good_fulfils = [f for f in (raw.get("fulfillments") or [])
-                    if (f.get("status") or "SUCCESS") not in ("CANCELLED", "ERROR", "FAILURE")]
-    good_fulfils.sort(key=lambda f: f["createdAt"])
-    dispatched = to_local_date(good_fulfils[0]["createdAt"], tz) if good_fulfils else None
-
-    location = None
-    if good_fulfils and good_fulfils[0].get("location"):
-        location = good_fulfils[0]["location"]["name"]
-    if not location:
-        for fo in (raw.get("fulfillmentOrders") or {}).get("nodes", []):
-            loc = fo.get("assignedLocation") or {}
-            if loc.get("name"):
-                location = loc["name"]
-                break
+    placed = to_local(raw["createdAt"], tz)
+    due = workday(placed.date(), promise_days, holidays)
+    good = sorted((f for f in raw["fulfillments"]
+                   if f["status"].upper() not in ("CANCELLED", "ERROR", "FAILURE")),
+                  key=lambda f: f["createdAt"])
+    dispatched = to_local(good[0]["createdAt"], tz).date() if good else None
+    location = (good[0]["location"] if good and good[0]["location"] not in ("", "-") else None) \
+        or raw.get("assigned")
     tpl, _ = map_3pl(location, mapping)
+    late = dispatched > due if dispatched else today > due
 
-    if dispatched:
-        late = dispatched > due
-    else:
-        late = today > due
-
-    tags = {t.strip().lower() for t in (raw.get("tags") or [])}
-    pe = (raw.get("purchasingEntity") or {}).get("__typename")
+    tags = {t.lower() for t in raw["tags"]}
     excluded = None
-    if raw.get("cancelledAt"):
+    if raw["cancelledAt"]:
         excluded = "cancelled"
-    elif not any(li.get("requiresShipping") for li in (raw.get("lineItems") or {}).get("nodes", [])):
+    elif not raw["shippable"]:
         excluded = "no shippable items"
     elif "test" in tags:
         excluded = "test tag"
-    elif pe == "PurchasingCompany" or "b2b" in tags:
+    elif raw["purchasingEntity"] == "PurchasingCompany" or "b2b" in tags:
         excluded = "B2B"
 
     # TODO(precision-sla): Precision's own SLA (orders received by 6:00am are
-    # dispatched the same business day) is a second, stricter test. When it is
-    # in scope, add a `precision_late` flag here (cut-off 06:00 Melbourne on
-    # the order's createdAt) and a separate destination; do not change `late`.
+    # dispatched the same business day) is a second, stricter late test. When
+    # it is in scope, add a `precision_late` flag here using received_by_3pl()
+    # with the Precision cut-off; do not change `late`, which is the customer
+    # promise test.
 
-    return Order(number=num, name=raw["name"], order_date=odate, due=due, dispatched=dispatched,
-                 cancelled=to_local_date(raw.get("cancelledAt"), tz), location=location,
-                 tpl=tpl, late=late, excluded=excluded)
-
-
-
-# --------------------------------------------------------------------------
-# Google Sheets
-# --------------------------------------------------------------------------
-
-def col_letter(idx: int) -> str:
-    return chr(ord("A") + idx)
-
-
-class Sheets:
-    BASE = "https://sheets.googleapis.com/v4/spreadsheets"
-
-    def __init__(self, key_path: str):
-        from google.oauth2 import service_account
-        from google.auth.transport.requests import AuthorizedSession
-        try:
-            creds = service_account.Credentials.from_service_account_file(
-                key_path, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-        except FileNotFoundError:
-            raise SweepError(f"GOOGLE_APPLICATION_CREDENTIALS points to a missing file") from None
-        self.email = creds.service_account_email
-        self.s = AuthorizedSession(creds)
-
-    def _req(self, method: str, url: str, **kw) -> dict:
-        for attempt in range(5):
-            r = self.s.request(method, url, timeout=60, **kw)
-            if r.status_code in (429, 500, 502, 503):
-                time.sleep(2 ** attempt)
-                continue
-            if r.status_code == 403:
-                raise SweepError(f"Google refused access (403). Share the sheet with {self.email} "
-                                 "as Editor.")
-            if r.status_code != 200:
-                raise SweepError(f"Google Sheets HTTP {r.status_code}: {r.text[:400]}")
-            return r.json()
-        raise SweepError("Google Sheets kept failing after 5 attempts")
-
-    def sheet_props(self, sid: str, tab: str) -> dict:
-        meta = self._req("GET", f"{self.BASE}/{sid}",
-                         params={"fields": "sheets.properties(sheetId,title,gridProperties)"})
-        for sh in meta["sheets"]:
-            if sh["properties"]["title"] == tab:
-                return sh["properties"]
-        raise SweepError(f"Tab {tab!r} not found in spreadsheet {sid}")
-
-    def values(self, sid: str, rng: str, render: str) -> list[list]:
-        data = self._req("GET", f"{self.BASE}/{sid}/values/{rng}",
-                         params={"valueRenderOption": render,
-                                 "dateTimeRenderOption": "SERIAL_NUMBER"})
-        return data.get("values", [])
-
-    def number_formats(self, sid: str, rng: str) -> list[list[dict | None]]:
-        data = self._req("GET", f"{self.BASE}/{sid}", params={
-            "ranges": rng, "includeGridData": "true",
-            "fields": "sheets.data.rowData.values.userEnteredFormat.numberFormat"})
-        rows = data["sheets"][0]["data"][0].get("rowData", [])
-        return [[(c.get("userEnteredFormat") or {}).get("numberFormat") for c in r.get("values", [])]
-                for r in rows]
-
-    def batch_update(self, sid: str, requests: list[dict]) -> None:
-        if requests:
-            self._req("POST", f"{self.BASE}/{sid}:batchUpdate", json={"requests": requests})
+    c = to_local(raw["cancelledAt"], tz)
+    return Order(order_number(raw["name"]), placed, due, dispatched, c.date() if c else None,
+                 location, tpl, late, excluded)
 
 
 # --------------------------------------------------------------------------
-# Sheet model and planning
+# Sheet layouts
 # --------------------------------------------------------------------------
 
 @dataclass
 class Layout:
-    key: str                 # "fault_log" or "btk_register"
+    key: str
     label: str
     spreadsheet_id: str
     tab: str
+    sheet_id: int
     first_data_row: int
-    last_col: int            # last column we write, 0-based (I=8 / H=7)
-    order_col: int = 0
-    date_col: int = 1
-    dispatched_col: int = 3
-    status_col: int = 7
-    notes_col: int | None = 8
-    tpl_col: int | None = 6
-    holiday_col: int = 10    # K
+    last_col: int            # last column we may write (0-based)
+    dispatched_col: int
+    status_col: int
+    notes_col: int | None    # None: no notes column we may write
+    holiday_col: int
+    open_status: str
+    late_status: str
+    date_pattern: str
 
 
-def fault_log_layout(c: dict) -> Layout:
-    return Layout("fault_log", "Order Fault Log", c["spreadsheet_id"], c["tab"],
-                  c["first_data_row"], last_col=8, status_col=7, notes_col=8, tpl_col=6)
+def layouts(cfg: dict) -> tuple[Layout, Layout]:
+    f, b = cfg["fault_log"], cfg["btk_register"]
+    fl = Layout("fault_log", "Order Fault Log", f["spreadsheet_id"], f["tab"], f["sheet_id"],
+                f["first_data_row"], last_col=11, dispatched_col=4, status_col=10, notes_col=11,
+                holiday_col=13, open_status=FL_OPEN, late_status=FL_LATE,
+                date_pattern="ddd d mmm yyyy")
+    # BTK column J is "BTK comment": never written, so there is no notes column.
+    bt = Layout("btk", "BTK Service Register", b["spreadsheet_id"], b["tab"], b["sheet_id"],
+                b["first_data_row"], last_col=9, dispatched_col=5, status_col=8, notes_col=None,
+                holiday_col=11, open_status=BTK_OPEN, late_status=BTK_LATE,
+                date_pattern="d mmm yyyy")
+    return fl, bt
 
 
-def btk_layout(c: dict) -> Layout:
-    # BTK column H is "BTK comment": never written, so there is no notes column.
-    return Layout("btk_register", "BTK Service Register", c["spreadsheet_id"], c["tab"],
-                  c["first_data_row"], last_col=7, status_col=6, notes_col=None, tpl_col=None)
+def new_row_cells(L: Layout, n: int, o: Order) -> list[dict | None]:
+    """userEnteredValue for columns A..last_col of new row n (None = leave blank)."""
+    date = {"numberValue": date_to_serial(o.order_date)}
+    time = {"numberValue": time_to_fraction(o.placed.time())}
+    disp = {"numberValue": date_to_serial(o.dispatched)} if o.dispatched else None
+    if L.key == "fault_log":
+        h = "$N$2:$N"
+        return [
+            {"numberValue": o.number},                                            # A
+            date,                                                                 # B
+            time,                                                                 # C
+            {"formulaValue": f"=WORKDAY(B{n},2,{h})"},                            # D
+            disp,                                                                 # E
+            {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(B{n}+1,E{n},{h}))'},    # F
+            {"formulaValue": f'=IF(E{n}="","",F{n}-2)'},                          # G
+            {"stringValue": o.tpl or ""},                                         # H
+            {"formulaValue": f'=IF(AND(WORKDAY(B{n}-1,1,{h})=B{n},C{n}<IF(H{n}="Precision",'
+                             f'TIME(6,0,0),TIME(12,0,0))),B{n},WORKDAY(B{n},1,{h}))'},  # I
+            {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(I{n},E{n},{h})-1)'},     # J
+            {"stringValue": FL_LATE if o.dispatched else FL_OPEN},                # K
+            None,                                                                 # L notes: people only
+        ]
+    h = "$L$9:$L"
+    return [
+        {"stringValue": f"#{o.number}"},                                          # A
+        date,                                                                     # B
+        time,                                                                     # C
+        {"formulaValue": f"=IF(AND(WORKDAY(B{n}-1,1,{h})=B{n},C{n}<TIME(12,0,0)),"
+                         f"B{n},WORKDAY(B{n},1,{h}))"},                           # D
+        {"formulaValue": f"=WORKDAY(B{n},2,{h})"},                                # E
+        disp,                                                                     # F
+        {"formulaValue": f'=IF(F{n}="","",NETWORKDAYS(D{n},F{n},{h})-1)'},        # G
+        {"formulaValue": f'=IF(F{n}="","",NETWORKDAYS(B{n}+1,F{n},{h})-2)'},      # H
+        {"stringValue": BTK_LATE if o.dispatched else BTK_OPEN},                  # I
+        None,                                                                     # J BTK comment
+    ]
 
+
+# --------------------------------------------------------------------------
+# Sheet state and planning
+# --------------------------------------------------------------------------
 
 @dataclass
 class SheetState:
     layout: Layout
-    sheet_id: int
     row_count: int
-    rows: dict[int, list]            # sheet row number -> FORMULA-render values (A..K)
-    by_order: dict[int, int]         # order number -> sheet row
-    last_data_row: int               # last row with anything in A..last_col (header row if none)
+    rows: dict[int, list]        # sheet row -> displayed values
+    by_order: dict[int, int]
+    last_data_row: int
     holidays: set[dt.date]
-    a2: str | None = None            # BTK only
-    b_formats: dict[int, dict | None] = field(default_factory=dict)
-    d_formats: dict[int, dict | None] = field(default_factory=dict)
+    a2: str | None
 
 
-def build_state(layout: Layout, sheet_id: int, row_count: int, formula_rows: list[list],
-                a2: str | None = None) -> SheetState:
-    """formula_rows starts at first_data_row (FORMULA render)."""
+def build_state(L: Layout, values: list[list], row_count: int) -> SheetState:
+    """values: get_values result for the whole tab starting at A1."""
     rows, by_order, holidays = {}, {}, set()
-    last = layout.first_data_row - 1
-    for i, r in enumerate(formula_rows):
-        n = layout.first_data_row + i
-        r = list(r) + [""] * (11 - len(r))
+    last = L.first_data_row - 1
+    width = max(L.holiday_col + 1, L.last_col + 1)
+    for i in range(L.first_data_row - 1, len(values)):
+        n = i + 1
+        r = [("" if v is None else v) for v in values[i]] + [""] * width
+        r = r[:width]
         rows[n] = r
-        if len(r) > layout.holiday_col and r[layout.holiday_col] not in ("", None):
+        if str(r[L.holiday_col]).strip():
             try:
-                holidays.add(parse_sheet_date(r[layout.holiday_col]))
+                holidays.add(parse_sheet_date(r[L.holiday_col]))
             except SweepError as e:
-                raise SweepError(f"{layout.label}: holiday cell K{n}: {e}") from None
-        if any(v not in ("", None) for v in r[: layout.last_col + 1]):
+                raise SweepError(f"{L.label}: holiday cell {col_letter(L.holiday_col)}{n}: {e}") from None
+        if any(str(v).strip() for v in r[: L.last_col + 1]):
             last = n
-        num = order_number(r[layout.order_col])
+        num = order_number(r[0])
         if num is not None:
             if num in by_order:
-                raise SweepError(f"{layout.label}: order {num} appears twice "
-                                 f"(rows {by_order[num]} and {n}); fix before running")
+                raise SweepError(f"{L.label}: order {num} is in rows {by_order[num]} and {n}; "
+                                 "remove the duplicate before the next run")
             by_order[num] = n
-    return SheetState(layout, sheet_id, row_count, rows, by_order, last, holidays, a2)
+    a2 = None
+    if L.key == "btk" and len(values) > 1 and values[1]:
+        a2 = str(values[1][0])
+    return SheetState(L, row_count, rows, by_order, last, holidays, a2)
 
 
 @dataclass
@@ -441,8 +370,7 @@ class CellChange:
     row: int
     col: int
     old: object
-    new: object
-    kind: str            # "date" | "text"
+    new: object       # date or str
     why: str
 
 
@@ -451,447 +379,390 @@ class Plan:
     layout: Layout
     appends: list[Order] = field(default_factory=list)
     changes: list[CellChange] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)     # informational, nothing written
+    notes: list[str] = field(default_factory=list)
 
 
-def plan_sheet(state: SheetState, orders: dict[int, Order], today: dt.date) -> Plan:
-    L = state.layout
-    p = Plan(L)
-    is_btk = L.key == "btk_register"
-
-    # 1. Existing rows.
-    for num, row in sorted(state.by_order.items(), key=lambda kv: kv[1]):
-        o = orders.get(num)
-        if o is None:
-            continue
-        r = state.rows[row]
-        status = str(r[L.status_col] or "")
-        if o.cancelled:
-            if L.notes_col is not None:
-                if str(r[L.notes_col] or "").strip() == "":
-                    p.changes.append(CellChange(row, L.notes_col, r[L.notes_col],
-                                                f"Cancelled in Shopify {short_date(o.cancelled)}",
-                                                "text", f"order {num} cancelled"))
-            else:
-                p.notes.append(f"Order #{num} (row {row}) was cancelled in Shopify on "
-                               f"{short_date(o.cancelled)}; left unchanged (no notes column).")
-            continue
-        if r[L.dispatched_col] in ("", None) and o.dispatched:
-            p.changes.append(CellChange(row, L.dispatched_col, "", o.dispatched, "date",
-                                        f"order {num} now fulfilled"))
-            if o.dispatched <= o.due:
-                p.notes.append(f"Order #{num} (row {row}) dispatched {short_date(o.dispatched)}, "
-                               "on time by our calculation; Status not changed.")
-                continue
-            if is_btk:
-                if status == BTK_OPEN:
-                    p.changes.append(CellChange(row, L.status_col, status, BTK_LATE, "text",
-                                                f"order {num} now dispatched"))
-            else:
-                if _norm_dash(status) == _norm_dash(FL_OPEN):
-                    p.changes.append(CellChange(row, L.status_col, status, FL_LATE, "text",
-                                                f"order {num} now dispatched"))
-
-    # 2. New late orders.
-    for num in sorted(orders):
-        o = orders[num]
-        if num in state.by_order or o.excluded or not o.late:
-            continue
-        if is_btk and o.tpl != "BTK":
-            continue
-        p.appends.append(o)
-
-    # 3. BTK A2 "Status as at ..." date.
-    if is_btk and state.a2 is not None:
-        new = re.sub(r"Status as at [^.]*\.\s*$", f"Status as at {long_date(today)}.", state.a2)
-        if new == state.a2 and "Status as at" not in state.a2:
-            p.notes.append("A2 has no 'Status as at ...' sentence; left unchanged.")
-        elif new != state.a2:
-            p.changes.append(CellChange(2, 0, state.a2, new, "text", "status date"))
-    return p
+def _blank(v) -> bool:
+    return v is None or str(v).strip() == ""
 
 
 def _norm_dash(s: str) -> str:
-    return re.sub(r"\s*[-–—]\s*", " - ", s.strip())
+    return re.sub(r"\s*[-–—]\s*", " - ", str(s).strip())
 
 
-def new_row_values(L: Layout, n: int, o: Order) -> list[dict]:
-    """userEnteredValue cells A..last_col for a new row n."""
-    hol = f"$K${L.first_data_row}:$K"
-    cells: list[dict] = []
-    if L.key == "fault_log":
-        cells.append({"numberValue": o.number})
-    else:
-        cells.append({"stringValue": f"#{o.number}"})
-    cells.append({"numberValue": date_to_serial(o.order_date)})
-    cells.append({"formulaValue": f"=WORKDAY(B{n},2,{hol})"})
-    cells.append({"numberValue": date_to_serial(o.dispatched)} if o.dispatched else None)
-    cells.append({"formulaValue": f'=IF(D{n}="","",NETWORKDAYS(B{n}+1,D{n},{hol}))'})
-    cells.append({"formulaValue": f'=IF(D{n}="","",E{n}-2)'})
-    if L.key == "fault_log":
-        cells.append({"stringValue": o.tpl or ""})
-        cells.append({"stringValue": FL_LATE if o.dispatched else FL_OPEN})
-        cells.append(None)     # I Notes / follow-up: left for people
-    else:
-        cells.append({"stringValue": BTK_LATE if o.dispatched else BTK_OPEN})
-        cells.append(None)     # H BTK comment: left for BTK
-    return cells
+def plan_sheet(st: SheetState, orders: dict[int, Order], today: dt.date) -> Plan:
+    L, p = st.layout, Plan(st.layout)
+    for num, row in sorted(st.by_order.items(), key=lambda kv: kv[1]):
+        o = orders.get(num)
+        if o is None:
+            continue
+        r = st.rows[row]
+        if o.cancelled:
+            if L.notes_col is not None and _blank(r[L.notes_col]):
+                p.changes.append(CellChange(row, L.notes_col, "", f"Cancelled in Shopify {short_date(o.cancelled)}",
+                                            f"#{num} cancelled"))
+            elif L.notes_col is None:
+                p.notes.append(f"#{num} (row {row}) was cancelled in Shopify on {short_date(o.cancelled)}; "
+                               "left unchanged (this tab has no notes column we may write).")
+            continue
+        if _blank(r[L.dispatched_col]) and o.dispatched:
+            p.changes.append(CellChange(row, L.dispatched_col, "", o.dispatched, f"#{num} now fulfilled"))
+            if o.dispatched <= o.due:
+                p.notes.append(f"#{num} (row {row}) dispatched {short_date(o.dispatched)}, on time by our "
+                               "calculation; Status not changed.")
+            elif _norm_dash(r[L.status_col]) == _norm_dash(L.open_status):
+                p.changes.append(CellChange(row, L.status_col, r[L.status_col], L.late_status,
+                                            f"#{num} now dispatched"))
+    for num in sorted(orders):
+        o = orders[num]
+        if num in st.by_order or o.excluded or not o.late:
+            continue
+        if L.key == "btk" and o.tpl != "BTK":
+            continue
+        p.appends.append(o)
+    if L.key == "btk" and st.a2 is not None:
+        pat = re.compile(r"(status as at )\d{1,2} [A-Za-z]+ \d{4}", re.IGNORECASE)
+        if not pat.search(st.a2):
+            p.notes.append("A2 has no 'status as at <date>' text; left unchanged.")
+        else:
+            new = pat.sub(lambda m: m.group(1) + long_date(today), st.a2, count=1)
+            if new != st.a2:
+                p.changes.append(CellChange(2, 0, st.a2, new, "status date"))
+    return p
 
 
-def _cell(v) -> dict:
-    return {"userEnteredValue": v} if v is not None else {}
+def col_letter(i: int) -> str:
+    return chr(ord("A") + i)
 
 
-def _old_value(v) -> dict | None:
-    if v in ("", None):
-        return None
-    if isinstance(v, bool):
-        return {"boolValue": v}
-    if isinstance(v, (int, float)):
-        return {"numberValue": v}
-    s = str(v)
-    return {"formulaValue": s} if s.startswith("=") else {"stringValue": s}
-
-
-def build_requests(state: SheetState, plan: Plan) -> tuple[list[dict], list[dict]]:
-    """Returns (forward requests, rollback requests) for one spreadsheet."""
-    L, sid = state.layout, state.sheet_id
-    fwd: list[dict] = []
-    back: list[dict] = []
+def build_requests(st: SheetState, plan: Plan) -> tuple[list[dict], list[dict]]:
+    """(forward, rollback) spreadsheets.batchUpdate requests for one spreadsheet."""
+    L, sid = st.layout, st.layout.sheet_id
     width = L.last_col + 1
-
+    fwd, back = [], []
     if plan.appends:
-        start = state.last_data_row + 1               # 1-based sheet row
+        start = st.last_data_row + 1
         end = start + len(plan.appends) - 1
-        if end > state.row_count:
-            extra = end - state.row_count
+        if end > st.row_count:
+            extra = end - st.row_count
             fwd.append({"appendDimension": {"sheetId": sid, "dimension": "ROWS", "length": extra}})
             back.append({"deleteDimension": {"range": {"sheetId": sid, "dimension": "ROWS",
-                                                       "startIndex": state.row_count,
-                                                       "endIndex": state.row_count + extra}}})
+                                                       "startIndex": st.row_count,
+                                                       "endIndex": st.row_count + extra}}})
         dest = {"sheetId": sid, "startRowIndex": start - 1, "endRowIndex": end,
                 "startColumnIndex": 0, "endColumnIndex": width}
-        if state.last_data_row >= L.first_data_row:
-            src = {"sheetId": sid, "startRowIndex": state.last_data_row - 1,
-                   "endRowIndex": state.last_data_row, "startColumnIndex": 0, "endColumnIndex": width}
+        if st.last_data_row >= L.first_data_row:
+            src = {"sheetId": sid, "startRowIndex": st.last_data_row - 1, "endRowIndex": st.last_data_row,
+                   "startColumnIndex": 0, "endColumnIndex": width}
             for pt in ("PASTE_FORMAT", "PASTE_DATA_VALIDATION"):
                 fwd.append({"copyPaste": {"source": src, "destination": dest, "pasteType": pt}})
-        else:
-            fwd.append({"repeatCell": {
-                "range": {**dest, "startColumnIndex": 1, "endColumnIndex": 4},
-                "cell": {"userEnteredFormat": {"numberFormat": {"type": "DATE", "pattern": "d mmm yyyy"}}},
-                "fields": "userEnteredFormat.numberFormat"}})
-        rows = [{"values": [_cell(v) for v in new_row_values(L, start + i, o)]}
+        rows = [{"values": [({"userEnteredValue": v} if v else {}) for v in new_row_cells(L, start + i, o)]}
                 for i, o in enumerate(plan.appends)]
         fwd.append({"updateCells": {"range": dest, "rows": rows, "fields": "userEnteredValue"}})
         back.append({"updateCells": {"range": dest, "rows": [{"values": [{}] * width}] * len(rows),
                                      "fields": "userEnteredValue"}})
-
     for ch in plan.changes:
         rng = {"sheetId": sid, "startRowIndex": ch.row - 1, "endRowIndex": ch.row,
                "startColumnIndex": ch.col, "endColumnIndex": ch.col + 1}
-        fields = "userEnteredValue"
-        if ch.kind == "date":
-            cell = {"userEnteredValue": {"numberValue": date_to_serial(ch.new)}}
-            dfmt = state.d_formats.get(ch.row)
-            if not dfmt or dfmt.get("type") not in ("DATE", "DATE_TIME"):
-                cell["userEnteredFormat"] = {"numberFormat": state.b_formats.get(ch.row)
-                                             or {"type": "DATE", "pattern": "d mmm yyyy"}}
-                fields += ",userEnteredFormat.numberFormat"
+        if isinstance(ch.new, dt.date):
+            cell = {"userEnteredValue": {"numberValue": date_to_serial(ch.new)},
+                    "userEnteredFormat": {"numberFormat": {"type": "DATE", "pattern": L.date_pattern}}}
+            fields = "userEnteredValue,userEnteredFormat.numberFormat"
         else:
             cell = {"userEnteredValue": {"stringValue": ch.new}}
+            fields = "userEnteredValue"
         fwd.append({"updateCells": {"range": rng, "rows": [{"values": [cell]}], "fields": fields}})
-        back.append({"updateCells": {"range": rng, "rows": [{"values": [_cell(_old_value(ch.old))]}],
-                                     "fields": "userEnteredValue"}})
+        old = {"userEnteredValue": {"stringValue": str(ch.old)}} if not _blank(ch.old) else {}
+        back.append({"updateCells": {"range": rng, "rows": [{"values": [old]}], "fields": "userEnteredValue"}})
     back.reverse()
     return fwd, back
 
 
 # --------------------------------------------------------------------------
-# Verification
+# Checks
 # --------------------------------------------------------------------------
 
-def check_sheet(label: str, formatted: list[list], first_row: int = 1) -> list[str]:
-    problems = []
-    for i, r in enumerate(formatted):
+def check_errors(label: str, values: list[list]) -> list[str]:
+    out = []
+    for i, r in enumerate(values):
         for j, v in enumerate(r):
             if isinstance(v, str) and v.strip() in ERROR_MARKERS:
-                problems.append(f"{label}: {col_letter(j)}{first_row + i} shows {v.strip()}")
-    return problems
+                out.append(f"{label}: {col_letter(j)}{i + 1} shows {v.strip()}")
+    return out
 
 
-def check_btk_counts(formatted: list[list], first_data_row: int) -> list[str]:
-    """B4 = Dispatched late, B5 = Not yet dispatched, B6 = Total rows."""
-    def cell(r, c):
-        try:
-            return formatted[r - 1][c]
-        except IndexError:
-            return ""
-    data = formatted[first_data_row - 1:]
-    late = sum(1 for r in data if len(r) > 6 and r[6] == BTK_LATE)
-    open_ = sum(1 for r in data if len(r) > 6 and r[6] == BTK_OPEN)
-    total = sum(1 for r in data if r and str(r[0]).strip() != "")
-    problems = []
-    for row, label, want in ((4, "Dispatched late", late), (5, "Not yet dispatched", open_), (6, "Total", total)):
-        got = str(cell(row, 1)).strip()
-        if got != str(want):
-            problems.append(f"BTK Service Register: B{row} ({label}) shows {got!r}, rows say {want}")
-    return problems
+def check_btk_counts(values: list[list], L: Layout) -> list[str]:
+    data = values[L.first_data_row - 1:]
+    st = lambda r: r[L.status_col] if len(r) > L.status_col else ""  # noqa: E731
+    want = {4: sum(st(r) == BTK_LATE for r in data),
+            5: sum(st(r) == BTK_OPEN for r in data),
+            6: sum(1 for r in data if r and str(r[0]).strip())}
+    names = {4: "Orders dispatched late", 5: "Not yet dispatched", 6: "Total"}
+    out = []
+    for row, n in want.items():
+        got = values[row - 1][1] if len(values) >= row and len(values[row - 1]) > 1 else ""
+        if str(got).strip() != str(n):
+            out.append(f"BTK Service Register: B{row} ({names[row]}) shows {got!r} but the rows give {n}")
+    return out
+
+
+def sheet_problems(L: Layout, values: list[list]) -> list[str]:
+    p = check_errors(L.label, values)
+    if L.key == "btk":
+        p += check_btk_counts(values, L)
+    return p
 
 
 # --------------------------------------------------------------------------
 # Output
 # --------------------------------------------------------------------------
 
-def describe(plan: Plan, state: SheetState) -> list[str]:
+def describe(plan: Plan, st: SheetState, cutoffs: dict[str, dt.time]) -> list[str]:
     L = plan.layout
     out = [f"== {L.label} / {L.tab} =="]
     if plan.appends:
-        start = state.last_data_row + 1
+        start = st.last_data_row + 1
         out.append(f"Add {len(plan.appends)} row(s) from row {start}:")
         for i, o in enumerate(plan.appends):
-            disp = short_date(o.dispatched) if o.dispatched else "-"
-            over = (networkdays(o.order_date + dt.timedelta(days=1), o.dispatched, state.holidays) - 2
-                    if o.dispatched else None)
-            status = ((FL_LATE if o.dispatched else FL_OPEN) if L.key == "fault_log"
-                      else (BTK_LATE if o.dispatched else BTK_OPEN))
-            tpl = f" | 3PL {o.tpl}" if L.key == "fault_log" else ""
-            over_s = f" | +{over} bd" if over is not None else ""
-            out.append(f"  row {start + i}: #{o.number} | ordered {short_date(o.order_date)} | "
-                       f"due {short_date(o.due)} | dispatched {disp}{over_s}{tpl} | {status}")
+            tpl_for_cutoff = "BTK" if L.key == "btk" else o.tpl
+            cut = cutoffs.get(tpl_for_cutoff or "", cutoffs["BTK"])
+            rec = received_by_3pl(o.placed, cut, st.holidays)
+            if o.dispatched:
+                disp = (f"dispatched {short_date(o.dispatched)} "
+                        f"(+{networkdays(o.order_date + dt.timedelta(days=1), o.dispatched, st.holidays) - 2} bd late, "
+                        f"{networkdays(rec, o.dispatched, st.holidays) - 1} bd after cut-off)")
+            else:
+                disp = "not dispatched"
+            tpl = f" | {o.tpl}" if L.key == "fault_log" else ""
+            status = L.late_status if o.dispatched else L.open_status
+            out.append(f"  row {start + i}: #{o.number} | {short_date(o.order_date)} {hhmm(o.placed.time())}"
+                       f" | received {short_date(rec)} | due {short_date(o.due)} | {disp}{tpl} | {status}")
     else:
         out.append("Add: none")
     if plan.changes:
         out.append(f"Change {len(plan.changes)} cell(s):")
         for ch in plan.changes:
-            old = ch.old if ch.old not in ("", None) else "(blank)"
+            old = "(blank)" if _blank(ch.old) else ch.old
             new = short_date(ch.new) if isinstance(ch.new, dt.date) else ch.new
             if ch.row == 2 and ch.col == 0:
-                old = "…" + str(old)[-40:]
-                new = "…" + str(new)[-40:]
-            out.append(f"  {col_letter(ch.col)}{ch.row}: {old!s} -> {new!s}   ({ch.why})")
+                m_old = re.search(r"status as at [^.,]*", str(old), re.I)
+                m_new = re.search(r"status as at [^.,]*", str(new), re.I)
+                old, new = (m_old.group(0) if m_old else old), (m_new.group(0) if m_new else new)
+            out.append(f"  {col_letter(ch.col)}{ch.row}: {old} -> {new}   ({ch.why})")
     else:
         out.append("Change: none")
-    for n in plan.notes:
-        out.append(f"  note: {n}")
+    out += [f"  note: {n}" for n in plan.notes]
     return out
 
 
 # --------------------------------------------------------------------------
-# Main
+# Commands
 # --------------------------------------------------------------------------
 
-def load_config() -> dict:
-    with open(HERE / "config.json") as f:
-        return json.load(f)
+def load_cfg() -> dict:
+    return json.loads((HERE / "config.json").read_text())
 
 
-def should_run_scheduled(cfg: dict, cron_utc: str, now_utc: dt.datetime) -> tuple[bool, str]:
-    """GitHub cron is UTC-only. The workflow fires at two UTC times so one of
-    them is 07:00 Melbourne in both AEST and AEDT; this keeps only that one,
-    and only on every second day counted from the anchor date."""
-    tz = ZoneInfo(cfg["timezone"])
+def melb_today(cfg: dict, override: str | None) -> dt.date:
+    if override:
+        return dt.date.fromisoformat(override)
+    return dt.datetime.now(ZoneInfo(cfg["timezone"])).date()
+
+
+def read_values(name: str) -> list[list]:
+    path = WORK / name
+    if not path.exists():
+        raise SweepError(f"Missing {path.relative_to(HERE.parent)}")
+    data = json.loads(path.read_text())
+    return data["values"] if isinstance(data, dict) else data
+
+
+def cmd_should_run(cfg, args) -> int:
+    today = melb_today(cfg, args.today)
     sc = cfg["schedule"]
-    minute, hour = (int(x) for x in cron_utc.split()[:2])
-    fired = now_utc.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if fired > now_utc:
-        fired -= dt.timedelta(days=1)
-    local = fired.astimezone(tz)
-    if local.hour != sc["local_hour"]:
-        return False, f"cron {cron_utc!r} is {local:%H:%M} Melbourne, not {sc['local_hour']:02d}:00"
-    gap = (local.date() - dt.date.fromisoformat(sc["anchor_date"])).days
-    if gap % sc["every_n_days"] != 0:
-        return False, f"{local.date()} is not a run day (every {sc['every_n_days']} days from {sc['anchor_date']})"
-    return True, f"run day {local.date()}"
+    gap = (today - dt.date.fromisoformat(sc["anchor_date"])).days
+    print("RUN" if gap >= 0 and gap % sc["every_n_days"] == 0 else "SKIP", today)
+    return 0
+
+
+def _states(cfg) -> tuple[SheetState, SheetState]:
+    meta = json.loads((WORK / "meta.json").read_text()) if (WORK / "meta.json").exists() else {}
+    fl, bt = layouts(cfg)
+    return (build_state(fl, read_values("fault_log.json"), meta.get("fault_log", {}).get("row_count", 10**6)),
+            build_state(bt, read_values("btk.json"), meta.get("btk", {}).get("row_count", 10**6)))
+
+
+def cmd_stale(cfg, args) -> int:
+    orders = load_orders(WORK / "orders.txt")
+    missing = set()
+    for st in _states(cfg):
+        for num, row in st.by_order.items():
+            if _blank(st.rows[row][st.layout.dispatched_col]) and num not in orders:
+                missing.add(num)
+    if missing:
+        print(" OR ".join(f"name:#{n}" for n in sorted(missing)))
+    else:
+        print("NONE")
+    return 0
+
+
+def cmd_plan(cfg, args) -> int:
+    tz = ZoneInfo(cfg["timezone"])
+    today = melb_today(cfg, args.today)
+    states = _states(cfg)
+    pre = []
+    for st, f in zip(states, ("fault_log.json", "btk.json")):
+        pre += sheet_problems(st.layout, read_values(f))
+    if pre:
+        raise SweepError("The sheets already show problems, so nothing will be written:\n  " + "\n  ".join(pre))
+
+    raw = load_orders(WORK / "orders.txt")
+    mapping = cfg["location_to_3pl"]
+    cutoffs = {k: dt.time.fromisoformat(v) for k, v in cfg["cutoffs"].items()}
+    per_sheet = [{n: evaluate(r, st.holidays, today, tz, mapping, cfg["promise_business_days"])
+                  for n, r in raw.items()} for st in states]
+    plans = [plan_sheet(st, o, today) for st, o in zip(states, per_sheet)]
+
+    ev = per_sheet[0]
+    window_start = today - dt.timedelta(days=cfg["lookback_days"] + 1)
+    in_window = [o for o in ev.values() if o.order_date >= window_start]
+    excl: dict[str, int] = {}
+    for o in in_window:
+        if o.excluded:
+            excl[o.excluded] = excl.get(o.excluded, 0) + 1
+    late_by: dict[str, int] = {}
+    for o in in_window:
+        if o.late and not o.excluded:
+            late_by[o.tpl or "(no location)"] = late_by.get(o.tpl or "(no location)", 0) + 1
+    new_by: dict[str, int] = {}
+    for o in plans[0].appends:
+        new_by[o.tpl or "(no location)"] = new_by.get(o.tpl or "(no location)", 0) + 1
+    unmapped = sorted({o.location for o in ev.values()
+                       if o.location and not o.excluded and o.late and not map_3pl(o.location, mapping)[1]})
+    fmt = lambda d: ", ".join(f"{k} {v}" for k, v in sorted(d.items())) or "none"  # noqa: E731
+
+    lines = [f"Late dispatch sweep, {today:%a %d %b %Y} (Melbourne), mode: {cfg['mode']}"]
+    if states[0].holidays != states[1].holidays:
+        lines.append("WARNING: the two sheets list different holidays; each sheet uses its own.")
+    if not any(h >= today for h in states[0].holidays | states[1].holidays):
+        lines.append("WARNING: no public holidays on or after today are listed in the sheets.")
+    lines += [
+        f"Orders checked: {len(in_window)} placed in the last {cfg['lookback_days']} days"
+        + (f" (+{len(ev) - len(in_window)} older orders looked up for open rows)" if len(ev) > len(in_window) else ""),
+        f"Excluded: {fmt(excl)}",
+        f"Late orders in the window by 3PL: {fmt(late_by)}",
+        f"New late orders by 3PL: {fmt(new_by)}",
+        f"New rows: Fault Log {len(plans[0].appends)}, BTK {len(plans[1].appends)}",
+        f"Cells to update: Fault Log {len(plans[0].changes)}, BTK {len(plans[1].changes)}",
+        f"Unmapped locations: {', '.join(unmapped) or 'none'}",
+        "",
+    ]
+    for st, p in zip(states, plans):
+        lines += describe(p, st, cutoffs) + [""]
+
+    WORK.mkdir(exist_ok=True)
+    meta = json.loads((WORK / "meta.json").read_text()) if (WORK / "meta.json").exists() else {}
+    for st, p, key in zip(states, plans, ("fault_log", "btk")):
+        fwd, back = build_requests(st, p)
+        body = {"spreadsheetId": st.layout.spreadsheet_id, "requests": fwd}
+        rev = meta.get(key, {}).get("revision_id")
+        if rev:
+            body["writeControl"] = {"requiredRevisionId": rev}
+        (WORK / f"{key}_requests.json").write_text(json.dumps(body, ensure_ascii=False, indent=1))
+        (WORK / f"{key}_rollback.json").write_text(json.dumps(
+            {"spreadsheetId": st.layout.spreadsheet_id, "requests": back}, ensure_ascii=False, indent=1))
+    lines.append("Writes needed: " + (", ".join(
+        k for k, p in (("fault_log", plans[0]), ("btk", plans[1])) if p.appends or p.changes) or "none"))
+    text = "\n".join(lines)
+    (WORK / "summary.txt").write_text(text + "\n")
+    print(text)
+    return 0
+
+
+def cmd_verify(cfg, args) -> int:
+    fl, bt = layouts(cfg)
+    problems = []
+    for L, f in ((fl, "fault_log_after.json"), (bt, "btk_after.json")):
+        problems += sheet_problems(L, read_values(f))
+    text = ("Verification: FAILED\n  " + "\n  ".join(problems)) if problems else \
+        "Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows."
+    (WORK / "verify.txt").write_text(text + "\n")
+    print(text)
+    return 1 if problems else 0
+
+
+def cmd_finish(cfg, args) -> int:
+    today = melb_today(cfg, args.today)
+    parts = [f"=== Run at {dt.datetime.now(ZoneInfo(cfg['timezone'])):%Y-%m-%d %H:%M} Melbourne: {args.status.upper()} ==="]
+    for f in ("summary.txt", "verify.txt"):
+        if (WORK / f).exists():
+            parts.append((WORK / f).read_text().rstrip())
+    parts.append(f"Errors: {args.note or 'none'}")
+    entry = "\n".join(parts) + "\n\n"
+    logs = HERE / "logs"
+    logs.mkdir(exist_ok=True)
+    name = f"{today:%Y-%m-%d}.txt"
+    with open(logs / name, "a") as fh:
+        fh.write(entry)
+    print(entry)
+    if args.push:
+        print(push_log(cfg["logs_branch"], name, entry))
+    return 0
+
+
+def push_log(branch: str, name: str, entry: str) -> str:
+    """Append the entry to late-dispatch-sweep/logs/<name> on the logs branch and push.
+    Uses a temporary worktree so the checked-out branch is left alone."""
+    repo = HERE.parent
+    tmp = Path(tempfile.mkdtemp())
+    wt = tmp / "wt"
+    git = lambda *a, cwd=repo: subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True)  # noqa: E731
+    try:
+        if git("fetch", "origin", branch).returncode == 0:
+            r = git("worktree", "add", "-B", branch, str(wt), f"origin/{branch}")
+        else:
+            r = git("worktree", "add", "--detach", str(wt))
+            if r.returncode == 0:
+                git("checkout", "--orphan", branch, cwd=wt)
+                git("rm", "-rfq", ".", cwd=wt)
+        if r.returncode != 0:
+            return f"Log not pushed (worktree): {r.stderr.strip()}"
+        dest = wt / "late-dispatch-sweep" / "logs" / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with open(dest, "a") as fh:
+            fh.write(entry)
+        git("add", str(dest.relative_to(wt)), cwd=wt)
+        c = git("commit", "-qm", f"Late dispatch sweep log {name[:-4]}", cwd=wt)
+        if c.returncode != 0:
+            return f"Log not pushed (commit): {c.stderr.strip() or c.stdout.strip()}"
+        for wait in (0, 2, 4, 8, 16):
+            if wait:
+                import time
+                time.sleep(wait)
+            p = git("push", "-u", "origin", branch, cwd=wt)
+            if p.returncode == 0:
+                return f"Log pushed to branch {branch}"
+        return f"Log not pushed (push): {p.stderr.strip()}"
+    finally:
+        git("worktree", "remove", "--force", str(wt))
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dry-run", action="store_true", help="print what would change; write nothing")
-    ap.add_argument("--whoami", action="store_true", help="print the service account email and exit")
-    ap.add_argument("--scheduled-cron", metavar="CRON",
-                    help="(GitHub Actions) the UTC cron that fired; skip unless it is a 07:00 run day")
-    ap.add_argument("--today", help="override today's Melbourne date (YYYY-MM-DD), for testing")
+    ap.add_argument("command", choices=["should-run", "stale", "plan", "verify", "finish"])
+    ap.add_argument("--today", help="override today's Melbourne date (YYYY-MM-DD)")
+    ap.add_argument("--status", default="ok", help="finish: ok, dry-run or failed")
+    ap.add_argument("--note", default="", help="finish: error text to record")
+    ap.add_argument("--push", action="store_true", help="finish: push the log to the logs branch")
     args = ap.parse_args(argv)
-
-    cfg = load_config()
-    tz = ZoneInfo(cfg["timezone"])
-    now_utc = dt.datetime.now(dt.timezone.utc)
-
-    if args.scheduled_cron:
-        ok, why = should_run_scheduled(cfg, args.scheduled_cron, now_utc)
-        print(f"Schedule check: {why}")
-        if not ok:
-            return 0
-
-    today = dt.date.fromisoformat(args.today) if args.today else now_utc.astimezone(tz).date()
-    log: list[str] = [f"Late dispatch sweep {'DRY RUN ' if args.dry_run else ''}"
-                      f"{now_utc.astimezone(tz):%Y-%m-%d %H:%M} Melbourne (today = {today})"]
-    written: list[tuple[Sheets, str, list[dict], str]] = []
-    sheets = None
+    cfg = load_cfg()
     try:
-        key = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if not key:
-            raise SweepError("GOOGLE_APPLICATION_CREDENTIALS is not set")
-        sheets = Sheets(key)
-        if args.whoami:
-            print(sheets.email)
-            return 0
-        token = os.environ.get("SHOPIFY_ADMIN_TOKEN")
-        if not token:
-            raise SweepError("SHOPIFY_ADMIN_TOKEN is not set")
-
-        # ---- Read both sheets (nothing is written until everything is planned)
-        states: list[SheetState] = []
-        for layout in (fault_log_layout(cfg["fault_log"]), btk_layout(cfg["btk_register"])):
-            props = sheets.sheet_props(layout.spreadsheet_id, layout.tab)
-            tab = f"'{layout.tab}'"
-            first = layout.first_data_row
-            formula = sheets.values(layout.spreadsheet_id, f"{tab}!A{first}:K", "FORMULA")
-            a2 = None
-            if layout.key == "btk_register":
-                top = sheets.values(layout.spreadsheet_id, f"{tab}!A2", "FORMATTED_VALUE")
-                a2 = top[0][0] if top and top[0] else ""
-            st = build_state(layout, props["sheetId"], props["gridProperties"]["rowCount"], formula, a2)
-            fmts = sheets.number_formats(layout.spreadsheet_id, f"{tab}!B{first}:D{max(st.last_data_row, first)}")
-            for i, r in enumerate(fmts):
-                st.b_formats[first + i] = r[0] if len(r) > 0 else None
-                st.d_formats[first + i] = r[2] if len(r) > 2 else None
-            fv = sheets.values(layout.spreadsheet_id, f"{tab}!A1:K", "FORMATTED_VALUE")
-            pre = check_sheet(layout.label, fv)
-            if layout.key == "btk_register":
-                pre += check_btk_counts(fv, first)
-            if pre:
-                raise SweepError("Sheet problems found before writing (nothing changed):\n  " + "\n  ".join(pre))
-            states.append(st)
-
-        fl_hol, btk_hol = states[0].holidays, states[1].holidays
-        if fl_hol != btk_hol:
-            log.append(f"WARNING: holiday lists differ. Fault Log: {sorted(map(str, fl_hol))}; "
-                       f"BTK: {sorted(map(str, btk_hol))}. Each sheet uses its own list.")
-        if not any(h >= today for h in fl_hol | btk_hol):
-            log.append("WARNING: no public holidays on or after today are listed in column K.")
-
-        # ---- Shopify
-        sc = cfg["shopify"]
-        shop = Shopify(sc["store"], sc["api_version"], token)
-        since = (now_utc - dt.timedelta(days=sc["lookback_days"])).strftime("%Y-%m-%dT%H:%M:%SZ")
-        raw = shop.orders(f"created_at:>='{since}'", sc["page_size"])
-        fetched = {order_number(r["name"]): r for r in raw}
-        # Open rows whose order is older than the window still need their Dispatched date.
-        stale = sorted({num for st in states for num, row in st.by_order.items()
-                        if st.rows[row][st.layout.dispatched_col] in ("", None) and num not in fetched})
-        for i in range(0, len(stale), 25):
-            q = " OR ".join(f"name:#{n}" for n in stale[i:i + 25])
-            for r in shop.orders(q, sc["page_size"]):
-                fetched.setdefault(order_number(r["name"]), r)
-
-        mapping = cfg["location_to_3pl"]
-        per_sheet_orders = []
-        unmapped: set[str] = set()
-        for st in states:
-            evald = {}
-            for num, r in fetched.items():
-                o = evaluate(r, st.holidays, today, tz, mapping, cfg["promise_business_days"])
-                evald[num] = o
-            per_sheet_orders.append(evald)
-        for o in per_sheet_orders[0].values():
-            if o.location and not o.excluded and o.late and not map_3pl(o.location, mapping)[1]:
-                unmapped.add(o.location)
-
-        window_nums = {order_number(r["name"]) for r in raw}
-        in_window = [o for n, o in per_sheet_orders[0].items() if n in window_nums]
-        excl: dict[str, int] = {}
-        for o in in_window:
-            if o.excluded:
-                excl[o.excluded] = excl.get(o.excluded, 0) + 1
-        late = [o for o in in_window if o.late and not o.excluded]
-
-        plans = [plan_sheet(st, ords, today) for st, ords in zip(states, per_sheet_orders)]
-
-        log.append(f"Orders checked: {len(raw)} in the last {sc['lookback_days']} days"
-                   + (f" (+{len(fetched) - len(raw)} older open orders looked up)" if len(fetched) > len(raw) else ""))
-        log.append("Excluded: " + (", ".join(f"{k} {v}" for k, v in sorted(excl.items())) or "none"))
-        by_tpl: dict[str, int] = {}
-        for o in late:
-            by_tpl[o.tpl or "(no location)"] = by_tpl.get(o.tpl or "(no location)", 0) + 1
-        log.append("Late orders in window by 3PL: " + (", ".join(f"{k} {v}" for k, v in sorted(by_tpl.items())) or "none"))
-        new_by_tpl: dict[str, int] = {}
-        for o in plans[0].appends:
-            new_by_tpl[o.tpl or "(no location)"] = new_by_tpl.get(o.tpl or "(no location)", 0) + 1
-        log.append("New late orders by 3PL (Fault Log): " + (", ".join(f"{k} {v}" for k, v in sorted(new_by_tpl.items())) or "none"))
-        log.append(f"New rows: Fault Log {len(plans[0].appends)}, BTK {len(plans[1].appends)}")
-        log.append(f"Cells updated: Fault Log {len(plans[0].changes)}, BTK {len(plans[1].changes)}")
-        log.append("Unmapped locations: " + (", ".join(sorted(unmapped)) or "none"))
-        log.append("")
-        for st, p in zip(states, plans):
-            log.extend(describe(p, st))
-            log.append("")
-
-        if args.dry_run:
-            log.append("DRY RUN: nothing was written.")
-            print("\n".join(log))
-            return 0
-
-        # ---- Write, then verify. Any failure rolls back what this run wrote.
-        for st, p in zip(states, plans):
-            fwd, back = build_requests(st, p)
-            if fwd:
-                sheets.batch_update(st.layout.spreadsheet_id, fwd)
-                written.append((sheets, st.layout.spreadsheet_id, back, st.layout.label))
-        problems = []
-        for st in states:
-            L = st.layout
-            fv = sheets.values(L.spreadsheet_id, f"'{L.tab}'!A1:K", "FORMATTED_VALUE")
-            problems += check_sheet(L.label, fv)
-            if L.key == "btk_register":
-                problems += check_btk_counts(fv, L.first_data_row)
-        if problems:
-            raise SweepError("Verification failed after writing:\n  " + "\n  ".join(problems))
-        log.append("Verification: no formula errors; BTK summary counts match the rows.")
-        log.append("Errors: none")
-        write_log(log, today)
-        print("\n".join(log))
-        return 0
-
+        return {"should-run": cmd_should_run, "stale": cmd_stale, "plan": cmd_plan,
+                "verify": cmd_verify, "finish": cmd_finish}[args.command](cfg, args)
     except SweepError as e:
-        rolled = rollback(written)
-        log.append(f"ERROR: {e}")
-        if rolled:
-            log.append(rolled)
-        print("\n".join(log), file=sys.stderr)
-        if not args.dry_run and not args.whoami:
-            write_log(log, today)
+        print(f"ERROR: {e}", file=sys.stderr)
         return 1
-    except Exception as e:   # unexpected: still roll back and fail loudly
-        rolled = rollback(written)
-        log.append(f"ERROR (unexpected): {e.__class__.__name__}: {e}")
-        if rolled:
-            log.append(rolled)
-        print("\n".join(log), file=sys.stderr)
-        if not args.dry_run and not args.whoami:
-            write_log(log, today)
-        return 1
-
-
-def rollback(written) -> str:
-    if not written:
-        return ""
-    msgs = []
-    for sheets, sid, back, label in reversed(written):
-        try:
-            sheets.batch_update(sid, back)
-            msgs.append(f"rolled back {label}")
-        except Exception as e:  # noqa: BLE001
-            msgs.append(f"ROLLBACK FAILED for {label}: {e} - check the sheet by hand")
-    return "Rollback: " + "; ".join(msgs)
-
-
-def write_log(lines: list[str], today: dt.date) -> None:
-    d = HERE / "logs"
-    d.mkdir(exist_ok=True)
-    with open(d / f"{today:%Y-%m-%d}.txt", "a") as f:
-        f.write("\n".join(lines) + "\n\n")
 
 
 if __name__ == "__main__":
