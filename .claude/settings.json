@@ -19,7 +19,13 @@
       "mcp__Asana__get_user",
       "mcp__Asana__get_users",
       "mcp__Asana__create_tasks",
-      "mcp__Asana__add_comment"
+      "mcp__Asana__add_comment",
+      "mcp__Google_Sheets__get_spreadsheet",
+      "mcp__Google_Sheets__get_values",
+      "mcp__Google_Sheets__update_spreadsheet",
+      "Bash(python3 late-dispatch-sweep/sweep.py:*)",
+      "Bash(date -u:*)",
+      "Write(late-dispatch-sweep/work/**)"
     ]
   }
 }
