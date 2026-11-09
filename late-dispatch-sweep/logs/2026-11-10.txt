@@ -1,0 +1,24 @@
+=== Run at 2026-11-10 06:45 Melbourne: OK ===
+Late dispatch sweep, Tue 10 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 299 placed in the last 30 days
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 52, Precision 2
+New late orders by 3PL: none
+New rows: Fault Log 0, BTK 0
+Cells to update: Fault Log 0, BTK 1
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add: none
+Change: none
+
+== BTK Service Register / Late dispatch ==
+Add: none
+Change 1 cell(s):
+  A2: status as at 9 November 2026 -> status as at 10 November 2026   (status date)
+
+Writes needed: btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: none
+
