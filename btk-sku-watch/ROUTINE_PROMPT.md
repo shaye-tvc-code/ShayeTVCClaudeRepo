@@ -24,11 +24,12 @@
    - In `chat_test`, the person in the chat tells you which to run. If they don't say, ask.
 4. In Shopify, look up the locations named `shopify_location` and `precision_location` (exact name match), plus the shop's admin domain and primary storefront domain. If either location is missing, skip steps B–D, still do step A, and put the location names Shopify actually has in the run log.
 5. If a connector call fails, stop work on that SKU, note it in the run log, and carry on with the others.
-6. Finish with a short run log: what you checked (SKU, BTK, Precision, total), what you sent, what you changed and what you skipped (and why).
+6. Finish with a short run log: what you checked (SKU, BTK, New3PL, total), what you sent, what you changed and what you skipped (and why).
 
 ## Definitions
 
-- **Total Available** = Available at `shopify_location` (BTK) + Available at `precision_location` (Precision). Ignore any other location. All thresholds use Total Available. Every email shows BTK, Precision and Total separately.
+- Note: the Shopify location formerly named "Precision" is now named "New3PL" (set in `precision_location`). "FROM PRECISION" wording and Dave at Precision (the warehouse operator) are unchanged.
+- **Total Available** = Available at `shopify_location` (BTK) + Available at `precision_location` (New3PL). Ignore any other location. All thresholds use Total Available. Every email shows BTK, New3PL and Total separately.
 - **Fulfilment line**, from the SKU's `successor_stock_at_btk` in the config:
   - `true` → `FROM BTK – successor SKU <new> is still held at BTK`
   - `false` → `FROM PRECISION – <old> is stocked out at BTK; <new> ships from Precision (container qty <container_qty>)`
@@ -85,7 +86,7 @@ The routine has no memory between runs. Before sending anything, check whether i
    2. **Find the variant.** In Shopify, find the variant on an ACTIVE product with SKU = old SKU.
       - If none is found, look for one with SKU = new SKU. If that exists, the change was already made: go straight to step 3.5.
       - If neither exists, add an Asana comment `ROUTINE: REPLY NEEDS A HUMAN` saying neither SKU was found, and stop.
-   3. **Re-check stock.** Total Available must be **0 or less**. If it's above 0, send a NOT CHANGED reply (if not already sent): `NOT CHANGED: <old> now has <total> available (BTK <x>, Precision <y>), so I have not changed the SKU. Reply CONFIRM again once it is back to 0 if you still want the change.` Then stop.
+   3. **Re-check stock.** Total Available must be **0 or less**. If it's above 0, send a NOT CHANGED reply (if not already sent): `NOT CHANGED: <old> now has <total> available (BTK <x>, New3PL <y>), so I have not changed the SKU. Reply CONFIRM again once it is back to 0 if you still want the change.` Then stop.
    4. **Change the SKU.** On that same variant, change the SKU from old to new. Change nothing else.
    5. **Verify.** Read the variant back and check its SKU now equals the new SKU. If it doesn't, add an Asana comment `ROUTINE: REPLY NEEDS A HUMAN` describing what you found, and stop.
    6. **DONE reply** (if not already sent). Reply in the SAME thread, with the subject unchanged, to `joseph_email`, cc everyone in `done_reply_cc` (Dave and Annalise). The body:
@@ -109,23 +110,23 @@ The routine has no memory between runs. Before sending anything, check whether i
 ## B. Read stock (FULL runs only)
 
 1. In Shopify, list every variant on an ACTIVE product whose SKU starts with `JB`, plus SKU `80402`.
-2. For each, get Available at BTK and at Precision, and work out Total Available.
+2. For each, get Available at BTK and at New3PL, and work out Total Available.
 3. Note in the run log any SKU in the config that isn't found on an active product. Don't email about it.
 
 ## C. Decide per SKU (FULL runs only)
 
 For each SKU from step B, work out which ONE case applies, then check whether that type was already sent (see the table). Each check only stops that same type. For example, an earlier LOW STOCK email does not stop a PROPOSAL.
 
-- **SKU not in `successors` or `no_successor`** → UNMAPPED: email `joseph_email`, subject `UNMAPPED SKU: <SKU>`. Give the product name and BTK / Precision / Total, and ask him to check with Shaye. Never guess a successor.
+- **SKU not in `successors` or `no_successor`** → UNMAPPED: email `joseph_email`, subject `UNMAPPED SKU: <SKU>`. Give the product name and BTK / New3PL / Total, and ask him to check with Shaye. Never guess a successor.
 - **Total between 1 and `warning_threshold_available`** → LOW STOCK: email `joseph_email`.
   - SKU in `successors`:
     - Subject: `LOW STOCK: <SKU> - SKU switch to <new> coming`
-    - Body: SKU, product, BTK / Precision / Total, successor SKU, the fulfilment line, "No action needed yet."
+    - Body: SKU, product, BTK / New3PL / Total, successor SKU, the fulfilment line, "No action needed yet."
   - SKU in `no_successor`:
     - Subject: `LOW STOCK: <SKU> - no successor SKU`
-    - Body: SKU, product, BTK / Precision / Total, the note from `no_successor`, "No action needed yet."
+    - Body: SKU, product, BTK / New3PL / Total, the note from `no_successor`, "No action needed yet."
 - **Total 0 or less, SKU in `successors`** → PROPOSAL: skip if there's already an incomplete Asana task whose title has this old SKU as a whole word. Otherwise do step D.
-- **Total 0 or less, SKU in `no_successor`** → STOCKOUT: email `joseph_email`, subject `STOCKOUT: <SKU> - no successor SKU`. Body: product, BTK / Precision / Total, and the note from `no_successor`. No SKU change, no Asana task.
+- **Total 0 or less, SKU in `no_successor`** → STOCKOUT: email `joseph_email`, subject `STOCKOUT: <SKU> - no successor SKU`. Body: product, BTK / New3PL / Total, and the note from `no_successor`. No SKU change, no Asana task.
 - **Total above `warning_threshold_available`** → nothing.
 
 ## D. Proposal (successor SKUs at 0)
@@ -137,7 +138,7 @@ D1. **PROPOSAL email** to `joseph_email` (if not already sent):
 - Body:
   - First line, in capitals: `UPDATE SKU IN SHOPIFY: <old> → <new>`
   - Product name.
-  - `Available now: BTK <x>, Precision <y>, Total <total>`
+  - `Available now: BTK <x>, New3PL <y>, Total <total>`
   - `Fulfilment after switch: <fulfilment line>`
   - The admin link.
   - This "How to reply" block, word for word:
@@ -184,7 +185,7 @@ D2. **Asana task** (if there isn't already an incomplete task with this old SKU 
   - `WOULD CHANGE SHOPIFY SKU`: product, variant ID, old SKU → new SKU, and the exact mutation you would run. Then show `SIMULATED READ-BACK: SKU = <new>`.
 - **Simulated state.** Keep a running list in the chat of simulated emails, threads, Asana tasks/comments and SKU changes. Give simulated threads and tasks made-up IDs such as `SIM-THREAD-1` and `SIM-TASK-1`. Use this list, as well as real mail and Asana, for the "already sent" checks and for step A. After a simulated SKU change, treat the variant as having the new SKU for the rest of the chat.
 - **The person in the chat plays Joseph.** After you show a PROPOSAL, stop and wait. Treat the person's next message, when they say it's Joseph's reply (e.g. "Joseph replies: CONFIRM"), as Joseph's latest message in that simulated thread. Then run step A for it.
-- **Test scenarios.** The person may set pretend stock figures (e.g. "pretend JB73761 is BTK 0, Precision 0"). Use them instead of the real figures, and label them as simulated in the run log.
+- **Test scenarios.** The person may set pretend stock figures (e.g. "pretend JB73761 is BTK 0, New3PL 0"). Use them instead of the real figures, and label them as simulated in the run log.
 - Before each block of simulated writes, say which step and case you're in, so the logic can be checked.
 
 ### `live_test`: everything real, clearly labelled as a test
