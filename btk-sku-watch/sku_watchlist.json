@@ -3,7 +3,7 @@
   "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = everything real (incl. Shopify SKU change), every email labelled as a test | live = normal operation",
 
   "shopify_location": "BTK",
-  "precision_location": "Precision",
+  "precision_location": "New3PL",
   "warning_threshold_available": 2,
 
   "send_from_account": "shaye@vergecollective.com.au",
