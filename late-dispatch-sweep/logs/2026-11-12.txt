@@ -1,0 +1,42 @@
+=== Run at 2026-11-12 06:47 Melbourne: OK ===
+Late dispatch sweep, Thu 12 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 298 placed in the last 30 days (+2 older orders looked up for open rows)
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 57
+New late orders by 3PL: BTK 3
+New rows: Fault Log 3, BTK 5
+Cells to update: Fault Log 4, BTK 5
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add 3 row(s) from row 59:
+  row 59: #5121 | 9 Nov 2026 19:44 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | BTK | Open – overdue
+  row 60: #5122 | 9 Nov 2026 20:32 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | BTK | Open – overdue
+  row 61: #5124 | 9 Nov 2026 23:11 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | BTK | Open – overdue
+Change 4 cell(s):
+  E3: (blank) -> 11 Nov 2026   (#5033 now fulfilled)
+  E4: (blank) -> 10 Nov 2026   (#5080 now fulfilled)
+  E57: (blank) -> 29 Sep 2026   (#4711 now fulfilled)
+  E58: (blank) -> 29 Sep 2026   (#4718 now fulfilled)
+  note: #4711 (row 57) dispatched 29 Sep 2026, on time by our calculation; Status not changed.
+  note: #4718 (row 58) dispatched 29 Sep 2026, on time by our calculation; Status not changed.
+
+== BTK Service Register / Late dispatch ==
+Add 5 row(s) from row 61:
+  row 61: #5086 | 4 Nov 2026 18:27 | received 5 Nov 2026 | due 6 Nov 2026 | not dispatched | Not yet dispatched
+  row 62: #5087 | 4 Nov 2026 19:17 | received 5 Nov 2026 | due 6 Nov 2026 | not dispatched | Not yet dispatched
+  row 63: #5121 | 9 Nov 2026 19:44 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | Not yet dispatched
+  row 64: #5122 | 9 Nov 2026 20:32 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | Not yet dispatched
+  row 65: #5124 | 9 Nov 2026 23:11 | received 10 Nov 2026 | due 11 Nov 2026 | not dispatched | Not yet dispatched
+Change 5 cell(s):
+  F9: (blank) -> 10 Nov 2026   (#5080 now fulfilled)
+  I9: Not yet dispatched -> Dispatched late   (#5080 now dispatched)
+  F10: (blank) -> 11 Nov 2026   (#5033 now fulfilled)
+  I10: Not yet dispatched -> Dispatched late   (#5033 now dispatched)
+  A2: status as at 10 November 2026 -> status as at 12 November 2026   (status date)
+
+Writes needed: fault_log, btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: Sheets connector returned no revisionId, so writes ran without the revision check. #5086/#5087 are now assigned to BTK in Shopify (Fault Log still says Precision; not changed).
+
