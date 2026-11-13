@@ -353,7 +353,9 @@ def build_state(L: Layout, values: list[list], row_count: int) -> SheetState:
                 raise SweepError(f"{L.label}: holiday cell {col_letter(L.holiday_col)}{n}: {e}") from None
         if any(str(v).strip() for v in r[: L.last_col + 1]):
             last = n
-        num = order_number(r[0])
+        # Only "#1234" / "1234" are Shopify orders; other references such as
+        # "LAT-20261104-1443" are B2B and are not tracked.
+        num = order_number(r[0]) if re.fullmatch(r"#?\d+(\.0+)?", str(r[0]).strip()) else None
         if num is not None:
             if num in by_order:
                 raise SweepError(f"{L.label}: order {num} is in rows {by_order[num]} and {n}; "
