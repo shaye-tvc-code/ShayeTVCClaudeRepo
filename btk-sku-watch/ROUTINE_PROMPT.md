@@ -194,7 +194,14 @@ Never include `ignore_skus` (Z73754, the archived duplicate of 73754) in anythin
 
 ### E2. Work out the alerts for each pair
 
-Check C first. If C applies to a pair, don't raise A or B for that pair (don't suggest moving stock that may not exist). D is checked on its own.
+Check C first. If C applies to a pair, don't raise S, A or B for that pair (don't suggest moving stock that may not exist). D is checked on its own. If S applies, raise S instead of A for that pair (S includes A's suggested move when A would also apply).
+
+**S. Normal product sold out, Personalised twin has stock**
+- Trigger: `N_total` ≤ 0 AND `P_3pl` > 0.
+- If A's trigger is also met, suggest moving A's X (same rules as A).
+- Otherwise, don't suggest a number. Say the Personalised twin only has `P_3pl` (about `P_3pl` ÷ `wP` weeks of its own sales, or "it hasn't sold in the last 4 weeks" if `wP` is 0). Then give the choices:
+  - move a few units across anyway, knowing the personalised version will run out sooner, or
+  - get more stock to Precision or BTK.
 
 **A. Normal product about to sell out**
 - Trigger: (`N_total` < `wN` OR `N_total` ≤ 5) AND `P_3pl` > `keepP`.
@@ -225,7 +232,7 @@ Read the latest state record (E5). An alert is **new** if it's active today for 
 - From `send_from_account`, to `personalised_balance.alert_to` (Shaye), cc `personalised_balance.alert_cc` (Joseph). The `always_cc` rule still applies; don't list Shaye twice.
 - Subject: `Personalised stock balance – <date> – <n> action(s)`, where n = number of new alerts. Use `1 action`, `2 actions`, and so on. This subject keeps the en dash as written.
 - Start with one line: what this email is and how many things need doing.
-- Then one block per alert, most urgent first (C, then D, then A, then B). Write so a 12-year-old could follow it. Every block has:
+- Then one block per alert, most urgent first (C, then D, then S, then A, then B). Write so a 12-year-old could follow it. Every block has:
   - **Heading:** the alert name and the product.
   - **What's happening:** the numbers in plain words (e.g. "Taupe Classic Jewellery Box has 3 left (BTK 0, New3PL 3). It sells about 4 a week.").
   - **Why it matters:** in one or two sentences, using these meanings:
@@ -233,11 +240,13 @@ Read the latest state record (E5). An alert is **new** if it's active today for 
     - B: customers can't order the personalised version, even though Precision has stock on the normal product.
     - C: Precision's system may have written its full stock to both products, so Shopify thinks we have twice as much and we could oversell.
     - D: a personalised order could be sent to BTK, which can't personalise it.
+    - S: customers who don't want personalisation see "sold out" right now, even though Precision has some of this item sitting on the Personalised product.
   - **What to do:** numbered steps with exact numbers, each product's name and its Shopify admin link:
     - A: 1. Open <Personalised product> (link). Under Inventory, at New3PL only, change Available from `P_3pl` to `P_3pl` − X. 2. Open <normal product> (link). At New3PL only, change Available from `N_3pl` to `N_3pl` + X. 3. Don't change BTK.
     - B: the same steps the other way round: the normal product goes down by X at New3PL, and the Personalised product goes up by X at New3PL.
     - C: 1. Don't move any stock for this pair. 2. Email Dave at Precision (david.arvaji@thepg.com.au) and ask how many units of <SKU> they really hold. 3. Compare with both products in Shopify and Precision's stock report. If the second trigger caused this, add: "If Precision received a delivery or a return of this item yesterday, this is expected and you can ignore it."
     - D: 1. Open <Personalised product> (link). 2. Under Inventory, set BTK Available to 0 today. 3. Leave New3PL as it is.
+    - S: if a move is suggested, the same steps as A. Otherwise, list the two choices from E2 in plain words, with both admin links.
 - End with the normal sign-off and footnote (and the `live_test` labels when in that mode).
 - No new alerts → no email.
 
@@ -247,7 +256,7 @@ After the email is sent, or straight away if there's no email:
 1. Find the Asana task named `personalised_balance.state_task_name` in project `asana_project_gid`. If it doesn't exist, create it there, unassigned, with no due date and the description "Used by the BTK SKU watch routine to remember yesterday's numbers. Please don't edit or complete."
 2. Add one comment starting `ROUTINE STATE <date>`, followed by a JSON block containing:
    - for each pair: `sku`, `N_btk`, `N_3pl`, `P_btk`, `P_3pl`
-   - `reported`: the alerts now active and already emailed, e.g. `["73774:A", "73108:D"]`. Include today's new alerts only if the email was actually sent. If sending failed, leave them out so they go again next run.
+   - `reported`: the alerts now active and already emailed, e.g. `["73774:S", "73108:D"]`. Include today's new alerts only if the email was actually sent. If sending failed, leave them out so they go again next run.
 3. The "previous run's state record" in E2 and E3 is the newest `ROUTINE STATE` comment dated before today.
 
 ### E6. Run log
