@@ -1,11 +1,9 @@
 {
   "mode": "live",
   "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = everything real (incl. Shopify SKU change), every email labelled as a test | live = normal operation",
-
   "shopify_location": "BTK",
   "precision_location": "New3PL",
   "warning_threshold_available": 2,
-
   "send_from_account": "shaye@vergecollective.com.au",
   "joseph_email": "joseph@stackersau.com.au",
   "feedback_name": "Shaye",
@@ -22,37 +20,40 @@
     "David Arvaji <david.arvaji@thepg.com.au>",
     "Annalise Mclean <info@corabookkeeping.com.au>"
   ],
-
   "asana_project_gid": "1217854156406741",
   "asana_project_name": "3. Operations",
   "asana_assignee_email": "joseph@stackersau.com.au",
-
   "watch_rule": "All active Shopify variants whose SKU starts with JB, plus 80402",
   "successors": {
     "JB73761": {
       "to": "73761",
       "successor_stock_at_btk": false,
-      "container_qty": 120
+      "container_qty": 120,
+      "product_id": "7952878436445"
     },
     "JB73764": {
       "to": "73764",
       "successor_stock_at_btk": true,
-      "container_qty": 84
+      "container_qty": 84,
+      "product_id": "7952865427549"
     },
     "JB73771": {
       "to": "73771",
       "successor_stock_at_btk": true,
-      "container_qty": 200
+      "container_qty": 200,
+      "product_id": "7952878698589"
     },
     "JB73789": {
       "to": "73789",
       "successor_stock_at_btk": true,
-      "container_qty": 192
+      "container_qty": 192,
+      "product_id": "7952877158493"
     },
     "80402": {
       "to": "70958",
       "successor_stock_at_btk": false,
-      "container_qty": 48
+      "container_qty": 48,
+      "product_id": "7952879452253"
     }
   },
   "no_successor": {
@@ -61,5 +62,84 @@
     "JB73677": "Replenish when needed (not immediate); expected to be last JB SKU cleared",
     "JB70950": "No successor; reactivated in Shopify 2 Nov 2026",
     "JB74419": "No successor; reactivated in Shopify 2 Nov 2026"
+  },
+  "ignore_skus": [
+    "Z73754"
+  ],
+  "personalised_balance": {
+    "_note": "Section E. Each pair shares ONE SKU, so always find products by handle, never by SKU.",
+    "alert_to": "shaye@vergecollective.com.au",
+    "alert_cc": [
+      "joseph@stackersau.com.au"
+    ],
+    "sales_window_days": 28,
+    "state_task_name": "ROUTINE STATE: Personalised pair balance (do not edit or complete)",
+    "pairs": [
+      {
+        "sku": "73774",
+        "normal_handle": "taupe-classic-jewellery-box",
+        "personalised_handle": "personalised-taupe-classic-jewellery-box"
+      },
+      {
+        "sku": "73750",
+        "normal_handle": "stackers-taupe-classic-jewellery-box-lid",
+        "personalised_handle": "personalised-taupe-classic-jewellery-box-lid"
+      },
+      {
+        "sku": "73785",
+        "normal_handle": "stackers-taupe-supersize-jewellery-box-lid",
+        "personalised_handle": "personalised-taupe-supersize-jewellery-box-lid"
+      },
+      {
+        "sku": "75344",
+        "normal_handle": "taupe-medium-travel-jewellery-box",
+        "personalised_handle": "personalised-taupe-medium-travel-jewellery-box"
+      },
+      {
+        "sku": "75347",
+        "normal_handle": "taupe-large-travel-jewellery-box",
+        "personalised_handle": "personalised-taupe-large-travel-jewellery-box"
+      },
+      {
+        "sku": "74305",
+        "normal_handle": "taupe-sleek-necklace-travel-jewellery-box",
+        "personalised_handle": "personalised-taupe-large-necklace-travel-jewellery-box"
+      },
+      {
+        "sku": "75346",
+        "normal_handle": "blush-large-travel-jewellery-box",
+        "personalised_handle": "personalised-blush-large-travel-jewellery-box"
+      },
+      {
+        "sku": "73775",
+        "normal_handle": "classic-set-3-blush",
+        "personalised_handle": "personalised-blush-classic-jewellery-box"
+      },
+      {
+        "sku": "73792",
+        "normal_handle": "blush-supersize-jewellery-box",
+        "personalised_handle": "personalised-blush-supersize-jewellery-box"
+      },
+      {
+        "sku": "73760",
+        "normal_handle": "classic-lidded-layer-blush",
+        "personalised_handle": "personalised-blush-classic-jewellery-box-lid"
+      },
+      {
+        "sku": "73108",
+        "normal_handle": "white-supersize-jewellery-box-lid",
+        "personalised_handle": "personalised-white-supersize-jewellery-box-lid"
+      },
+      {
+        "sku": "73897",
+        "normal_handle": "blush-mini-jewellery-box",
+        "personalised_handle": "personalised-blush-mini-jewellery-box"
+      },
+      {
+        "sku": "75341",
+        "normal_handle": "taupe-petite-travel-jewellery-box",
+        "personalised_handle": "personalised-taupe-petite-travel-jewellery-box"
+      }
+    ]
   }
 }
