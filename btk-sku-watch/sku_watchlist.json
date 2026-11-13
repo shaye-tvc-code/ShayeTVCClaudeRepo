@@ -10,6 +10,9 @@
   "joseph_email": "joseph@stackersau.com.au",
   "feedback_name": "Shaye",
   "feedback_email": "shaye@vergecollective.com.au",
+  "always_cc": [
+    "shaye@vergecollective.com.au"
+  ],
   "dave_email": "David Arvaji <david.arvaji@thepg.com.au>",
   "sku_change_notify_cc": [
     "joseph@stackersau.com.au",

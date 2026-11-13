@@ -42,6 +42,7 @@
   - Never make up a URL.
 - **Every email** you send:
   - Send from the Superhuman account `send_from_account`.
+  - Always cc everyone in `always_cc` (Shaye), on every new email and every reply, in addition to any other cc listed for that email. Don't add an address twice if it's already a recipient.
   - Subjects use plain ASCII (`-` and `->`, not `–` or `→`). Bodies may use either.
   - End with:
     ```
