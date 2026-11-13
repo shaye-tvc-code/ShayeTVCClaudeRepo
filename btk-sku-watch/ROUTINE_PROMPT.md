@@ -215,9 +215,8 @@ Check C first. If C applies to a pair, don't raise S, A or B for that pair (don'
 - If that leaves X at 0 or less, still raise the alert, but say there isn't enough spare stock to move and more stock is needed at Precision.
 
 **C. Stock looks doubled: stop and check**
-- Trigger, either:
-  - `N_3pl` = `P_3pl` and both are above 0, OR
-  - `N_3pl` + `P_3pl` is higher than in the previous run's state record (E5). If there's no previous record, skip this part and say so in the run log.
+- Trigger: `N_3pl` + `P_3pl` is higher than in the previous run's state record (E5). If there's no previous record, don't raise C, and say so in the run log.
+- The two products showing the same number at New3PL is **not** a trigger on its own, because the stock is often split evenly on purpose. But if C has triggered and the numbers are equal (both above 0), say so in the alert as extra evidence of doubling.
 - No stock moves for this pair.
 
 **D. Personalised product has stock at BTK**
@@ -244,7 +243,7 @@ Read the latest state record (E5). An alert is **new** if it's active today for 
   - **What to do:** numbered steps with exact numbers, each product's name and its Shopify admin link:
     - A: 1. Open <Personalised product> (link). Under Inventory, at New3PL only, change Available from `P_3pl` to `P_3pl` − X. 2. Open <normal product> (link). At New3PL only, change Available from `N_3pl` to `N_3pl` + X. 3. Don't change BTK.
     - B: the same steps the other way round: the normal product goes down by X at New3PL, and the Personalised product goes up by X at New3PL.
-    - C: 1. Don't move any stock for this pair. 2. Email Dave at Precision (david.arvaji@thepg.com.au) and ask how many units of <SKU> they really hold. 3. Compare with both products in Shopify and Precision's stock report. If the second trigger caused this, add: "If Precision received a delivery or a return of this item yesterday, this is expected and you can ignore it."
+    - C: 1. Don't move any stock for this pair. 2. Email Dave at Precision (david.arvaji@thepg.com.au) and ask how many units of <SKU> they really hold. 3. Compare with both products in Shopify and Precision's stock report. Always add: "If Precision received a delivery or a return of this item yesterday, this is expected and you can ignore it." If both products show the same number, also add: "Both products show exactly <number>, which is what it would look like if Precision's system copied its full count to both."
     - D: 1. Open <Personalised product> (link). 2. Under Inventory, set BTK Available to 0 today. 3. Leave New3PL as it is.
     - S: if a move is suggested, the same steps as A. Otherwise, list the two choices from E2 in plain words, with both admin links.
 - End with the normal sign-off and footnote (and the `live_test` labels when in that mode).
