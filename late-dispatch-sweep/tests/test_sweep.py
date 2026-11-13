@@ -140,6 +140,12 @@ def test_build_state():
     assert bt.by_order == {5008: 9} and bt.a2 == A2 and bt.holidays == HOL
 
 
+def test_b2b_references_are_not_orders():
+    b2b = ["LAT-20261104-1443", "", "", "", "", "", "", "BTK", "", "", "1. Open – overdue", "Follow up on tracking"]
+    st = s.build_state(FL, fl_values([fl_row(5008), fl_row("#4711"), b2b]), 498)
+    assert st.by_order == {5008: 2, 4711: 3} and st.last_data_row == 4
+
+
 def test_duplicate_rows_stop_the_run():
     with pytest.raises(s.SweepError):
         s.build_state(FL, fl_values([fl_row(5008), fl_row(5008)]), 498)
