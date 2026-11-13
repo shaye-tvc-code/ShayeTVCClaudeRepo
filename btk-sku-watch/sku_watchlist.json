@@ -1,5 +1,5 @@
 {
-  "mode": "live_test",
+  "mode": "live",
   "_mode_options": "chat_test = simulate everything in a chat, send/change nothing | live_test = everything real (incl. Shopify SKU change), every email labelled as a test | live = normal operation",
 
   "shopify_location": "BTK",
