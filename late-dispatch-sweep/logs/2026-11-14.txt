@@ -34,5 +34,5 @@ Change 5 cell(s):
 
 Writes needed: fault_log, btk
 Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
-Errors: Sheets connector returned no revisionId, so writes ran without the revision check. Fault Log row 62 'LAT-20261104-1443' is not a Shopify order (stale lookup as #202611041443 found nothing). #5087 still assigned to New3PL in Shopify; #5086 now BTK (Fault Log still says Precision for both; not changed). #5121 and #5133 (BTK) still unfulfilled.
+Errors: Sheets connector returned no revisionId, so writes ran without the revision check. #5121 and #5133 (BTK) still unfulfilled.
 
