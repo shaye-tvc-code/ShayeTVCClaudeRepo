@@ -29,7 +29,10 @@
 ## Definitions
 
 - Note: the Shopify location formerly named "Precision" is now named "New3PL" (set in `precision_location`). "FROM PRECISION" wording and Dave at Precision (the warehouse operator) are unchanged.
-- **Total Available** = Available at `shopify_location` (BTK) + Available at `precision_location` (New3PL). Ignore any other location. All thresholds use Total Available. Every email shows BTK, New3PL and Total separately.
+- **Total Available** = Available at `shopify_location` (BTK) + Available at `precision_location` (New3PL). Ignore any other location. Every email shows BTK, New3PL and Total separately.
+- **Which stock number the JB thresholds use:**
+  - SKUs in `successors` (they have a replacement SKU): **BTK Available only**. Precision's stock of the plain code is recorded in Shopify on the JB listing at New3PL (Precision's system picks the plain code for a JB order), so New3PL stock doesn't delay the switch. It stays with the product after the SKU change.
+  - SKUs in `no_successor`, and UNMAPPED SKUs: **Total Available** (BTK + New3PL), because those only matter when stock runs out everywhere.
 - **Fulfilment line**, from the SKU's `successor_stock_at_btk` in the config:
   - `true` → `FROM BTK – successor SKU <new> is still held at BTK`
   - `false` → `FROM PRECISION – <old> is stocked out at BTK; <new> ships from Precision (container qty <container_qty>)`
@@ -70,7 +73,7 @@ The routine has no memory between runs. Before sending anything, check whether i
 | Asana: needs a human | Comment starts `ROUTINE: REPLY NEEDS A HUMAN` and includes the Superhuman message ID | The task already has such a comment with that message ID |
 | Asana: done marker | Comment starts `ROUTINE: SKU CHANGED` | The task already has such a comment |
 | PAIR BALANCE alert | Item in the morning email (step F) | Tracked per pair in `reported` in the state record (see E3 and F3). |
-| MORNING EMAIL | `Daily stock watch – <date> – <n> action(s)` | At most one per day: sent mail has that subject for today's date. |
+| MORNING EMAIL | `Daily stock watch – <date> – <n> decision(s)` | At most one per day: sent mail has that subject for today's date. |
 
 ---
 
@@ -90,7 +93,7 @@ The routine has no memory between runs. Before sending anything, check whether i
       - If that product is ACTIVE and has a variant with SKU = old SKU, that's the variant to change.
       - If instead it has a variant with SKU = new SKU, the change was already made: go straight to step 3.5.
       - Otherwise (product missing, not active, or neither SKU on it), add an Asana comment `ROUTINE: REPLY NEEDS A HUMAN` describing what you found, and stop.
-   3. **Re-check stock.** Total Available must be **0 or less**. If it's above 0, send a NOT CHANGED reply (if not already sent): `NOT CHANGED: <old> now has <total> available (BTK <x>, New3PL <y>), so I have not changed the SKU. Reply CONFIRM again once it is back to 0 if you still want the change.` Then stop.
+   3. **Re-check stock.** BTK Available must be **0 or less** (New3PL stock doesn't matter here). If BTK is above 0, send a NOT CHANGED reply (if not already sent): `NOT CHANGED: <old> now has <x> at BTK, so I have not changed the SKU. Reply CONFIRM again once BTK is back to 0 if you still want the change.` Then stop.
    4. **Change the SKU.** On that same variant, change the SKU from old to new. Change nothing else.
    5. **Verify.** Read the variant back (on the same product ID) and check its SKU now equals the new SKU. If it doesn't, add an Asana comment `ROUTINE: REPLY NEEDS A HUMAN` describing what you found, and stop.
    6. **DONE reply** (if not already sent). Reply in the SAME thread, with the subject unchanged, to `joseph_email`, cc everyone in `done_reply_cc` (Dave and Annalise). The body:
@@ -123,17 +126,16 @@ For each SKU from step B, work out which ONE case applies, then check whether th
 
 LOW STOCK, STOCKOUT and UNMAPPED are **not sent as their own emails**. Each new one becomes an item in the morning email (step F), with the content below. PROPOSALS are still sent as their own email (step D), because Joseph's CONFIRM reply has to come back in that thread.
 
-- **SKU not in `successors` or `no_successor`** → UNMAPPED item: heading `UNMAPPED SKU: <SKU>`. Give the product name and BTK / New3PL / Total, and ask him to check with Shaye. Never guess a successor.
-- **Total between 1 and `warning_threshold_available`** → LOW STOCK item.
-  - SKU in `successors`:
-    - Heading: `LOW STOCK: <SKU> - SKU switch to <new> coming`
-    - Content: SKU, product, BTK / New3PL / Total, successor SKU, the fulfilment line, "No action needed yet."
-  - SKU in `no_successor`:
-    - Heading: `LOW STOCK: <SKU> - no successor SKU`
-    - Content: SKU, product, BTK / New3PL / Total, the note from `no_successor`, "No action needed yet."
-- **Total 0 or less, SKU in `successors`** → PROPOSAL: skip if there's already an incomplete Asana task whose title has this old SKU as a whole word. Otherwise do step D.
-- **Total 0 or less, SKU in `no_successor`** → STOCKOUT item: heading `STOCKOUT: <SKU> - no successor SKU`. Content: product, BTK / New3PL / Total, and the note from `no_successor`. No SKU change, no Asana task.
-- **Total above `warning_threshold_available`** → nothing.
+- **SKU not in `successors` or `no_successor`** → UNMAPPED item: heading `UNMAPPED SKU: <SKU>`. Give the product name and BTK / New3PL / Total, and say it needs adding to the config with either a replacement SKU or a no-successor note. Never guess a successor.
+- **SKU in `successors`, BTK between 1 and `warning_threshold_available`** → LOW STOCK item:
+  - Heading: `LOW STOCK: <SKU> - SKU switch to <new> coming`
+  - Content: SKU, product, BTK / New3PL / Total, successor SKU, the fulfilment line, "No action needed yet."
+- **SKU in `no_successor`, Total between 1 and `warning_threshold_available`** → LOW STOCK item:
+  - Heading: `LOW STOCK: <SKU> - no successor SKU`
+  - Content: SKU, product, BTK / New3PL / Total, the note from `no_successor`, "No action needed yet."
+- **SKU in `successors`, BTK 0 or less** → PROPOSAL (whatever New3PL has): skip if there's already an incomplete Asana task whose title has this old SKU as a whole word. Otherwise do step D.
+- **SKU in `no_successor`, Total 0 or less** → STOCKOUT item: heading `STOCKOUT: <SKU> - no successor SKU`. Content: product, BTK / New3PL / Total, and the note from `no_successor`. No SKU change, no Asana task.
+- **Anything else** (BTK above `warning_threshold_available` for `successors` SKUs, Total above it for `no_successor` SKUs) → nothing.
 
 ## D. Proposal (successor SKUs at 0)
 
@@ -144,7 +146,8 @@ D1. **PROPOSAL email** to `joseph_email` (if not already sent):
 - Body:
   - First line, in capitals: `UPDATE SKU IN SHOPIFY: <old> → <new>`
   - Product name.
-  - `Available now: BTK <x>, New3PL <y>, Total <total>`
+  - `Available now: BTK <x> (sold out), New3PL <y>`
+  - If New3PL is above 0: `The <y> at New3PL are Precision's stock of <new>. They stay with this product after the SKU change.`
   - `Fulfilment after switch: <fulfilment line>`
   - The admin link.
   - This "How to reply" block, word for word:
@@ -174,7 +177,7 @@ D2. **Asana task** (if there isn't already an incomplete task with this old SKU 
 
 ## E. Personalised pair balance (FULL runs only)
 
-**What this is for.** Personalised orders must ship from Precision (Shopify location New3PL). To make that happen, Shopify has 13 "Personalised" lookalike products. Each is a copy of a normal product with the SAME SKU, stocked only at New3PL. Because they are separate products, each keeps its own stock count. Precision's real stock is split by hand between the normal product and its Personalised twin, but in Precision's warehouse it is one pile. This step warns Shaye and Joseph when that split needs fixing.
+**What this is for.** Personalised orders must ship from Precision (Shopify location New3PL). To make that happen, Shopify has 13 "Personalised" lookalike products. Each is a copy of a normal product with the SAME SKU, stocked only at New3PL. Because they are separate products, each keeps its own stock count. Precision's real stock is split by hand between the normal product and its Personalised twin, but in Precision's warehouse it is one pile. This step warns Shaye when that split needs fixing.
 
 **This step only reads stock and works out alerts.** It never changes stock, products or SKUs. Its alerts go in the morning email and its numbers are saved in the state record (both in step F).
 
@@ -255,14 +258,14 @@ Add a table to the run log: SKU, `N_btk`, `N_3pl`, `P_btk`, `P_3pl`, `wN`, `wP`,
 
 ### F1. Who and when
 - One email per FULL run, combining everything new from step C (JB/80402 notices) and step E (pair alerts).
-- From `send_from_account` (Shaye), to `daily_email.to` (Joseph), cc `daily_email.cc` (Shaye). The `always_cc` rule is already met; don't list Shaye twice.
-- Subject: `Daily stock watch – <date> – <n> action(s)`, where n = the number of items in the email. Use `1 action`, `2 actions`, and so on. This subject keeps the en dash.
+- From `send_from_account` (Shaye), to `daily_email.to` (**Shaye only**). Don't cc Joseph or anyone else. The `always_cc` rule is already met; don't list Shaye twice.
+- Subject: `Daily stock watch – <date> – <n> decision(s)`, where n = the number of items in the email. Use `1 decision`, `2 decisions`, and so on. This subject keeps the en dash.
 - Only send it if there's at least one new item from step C or step E. Nothing new → no email.
 - If step E failed, still send the step C items and add a line saying the pair balance check didn't run today.
 
 ### F2. Layout
-1. One opening line: what this email is and how many things are in it. Add: "Don't reply CONFIRM to this email. SKU changes are only approved in their own ACTION: UPDATE SKU IN SHOPIFY email."
-2. **Approval requests sent today** (only if step D sent any): one line each, `<old> → <new> (<product>): approval request sent in a separate email. Reply CONFIRM there.` These are reminders, not counted in n.
+1. One opening line: what this email is and how many things are in it.
+2. **Approval requests sent today** (only if step D sent any): one line each, `<old> → <new> (<product>): approval request sent to Joseph in a separate email.` These are reminders, not counted in n.
 3. **JB SKU watch**: the new step C items, in this order: UNMAPPED, STOCKOUT, LOW STOCK. Each uses its heading and content from step C. Skip this section if there are none.
 4. **Personalised pair balance**: the new step E alerts, worded as in E4. Skip this section if there are none.
 5. The normal sign-off and footnote (and the `live_test` labels when in that mode).

@@ -67,11 +67,9 @@
     "Z73754"
   ],
   "daily_email": {
-    "_note": "One morning email combining the JB/80402 notices (step C) and the Personalised pair balance alerts (step E). Approval requests stay as their own emails.",
-    "to": "joseph@stackersau.com.au",
-    "cc": [
-      "shaye@vergecollective.com.au"
-    ]
+    "_note": "One 6 am email to Shaye only: JB/80402 notices and the pair balance alerts. Joseph only gets approval requests, DONE replies (in those threads) and Asana tasks.",
+    "to": "shaye@vergecollective.com.au",
+    "cc": []
   },
   "personalised_balance": {
     "_note": "Section E. Each pair shares ONE SKU, so always find products by handle, never by SKU.",
