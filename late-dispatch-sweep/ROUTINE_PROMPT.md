@@ -7,6 +7,7 @@
 - Schedule: `CRON_TZ=Australia/Melbourne 0 7 * * *` (every day at 7:00am Melbourne; daylight saving is handled). The routine skips every other day by itself (see step 1), so it does the work every second day.
 - Prompt: `Read late-dispatch-sweep/ROUTINE_PROMPT.md and follow the Routine section.`
 - Mode: `mode` in `late-dispatch-sweep/config.json` is `live` (writes to the sheets). Set it to `dry_run` to read and log without writing.
+- Plain-English explainer for the team: the "Late Dispatch Sweep" tab of the Google Doc "Routines and Automations" (internal, never share with BTK): https://docs.google.com/document/d/1ONyBG2WuVbE0WP13OhEEGIhaj01A9Ie7CfTR_jOxaos/edit . **Whenever this routine or its config changes, update that tab in place (same link) and its "Last updated" date.**
 - Pause: open the routine and turn it off (or set `mode` to `dry_run` to keep the logs without writing).
 
 ---
