@@ -530,10 +530,19 @@ def check_btk_counts(values: list[list], L: Layout) -> list[str]:
     return out
 
 
-def sheet_problems(L: Layout, values: list[list]) -> list[str]:
+def check_never_mention(label: str, payload, terms: list[str]) -> list[str]:
+    """The BTK Service Register is shared with BTK: it must never name another
+    3PL. Scans any cell values or request JSON for the configured terms."""
+    text = json.dumps(payload, ensure_ascii=False).lower()
+    return [f"{label}: contains '{t}', which must never appear in the sheet shared with BTK"
+            for t in terms if t.lower() in text]
+
+
+def sheet_problems(L: Layout, values: list[list], never: list[str] | None = None) -> list[str]:
     p = check_errors(L.label, values)
     if L.key == "btk":
         p += check_btk_counts(values, L)
+        p += check_never_mention(L.label, values, never or [])
     return p
 
 
@@ -637,8 +646,9 @@ def cmd_plan(cfg, args) -> int:
     today = melb_today(cfg, args.today)
     states = _states(cfg)
     pre = []
+    never = cfg["btk_register"].get("never_mention", [])
     for st, f in zip(states, ("fault_log.json", "btk.json")):
-        pre += sheet_problems(st.layout, read_values(f))
+        pre += sheet_problems(st.layout, read_values(f), never)
     if pre:
         raise SweepError("The sheets already show problems, so nothing will be written:\n  " + "\n  ".join(pre))
 
@@ -690,6 +700,10 @@ def cmd_plan(cfg, args) -> int:
     meta = json.loads((WORK / "meta.json").read_text()) if (WORK / "meta.json").exists() else {}
     for st, p, key in zip(states, plans, ("fault_log", "btk")):
         fwd, back = build_requests(st, p)
+        if key == "btk":
+            bad = check_never_mention("BTK Service Register writes", fwd, never)
+            if bad:
+                raise SweepError("Refusing to write: " + "; ".join(bad))
         body = {"spreadsheetId": st.layout.spreadsheet_id, "requests": fwd}
         rev = meta.get(key, {}).get("revision_id")
         if rev:
@@ -708,8 +722,9 @@ def cmd_plan(cfg, args) -> int:
 def cmd_verify(cfg, args) -> int:
     fl, bt = layouts(cfg)
     problems = []
+    never = cfg["btk_register"].get("never_mention", [])
     for L, f in ((fl, "fault_log_after.json"), (bt, "btk_after.json")):
-        problems += sheet_problems(L, read_values(f))
+        problems += sheet_problems(L, read_values(f), never)
     text = ("Verification: FAILED\n  " + "\n  ".join(problems)) if problems else \
         "Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows."
     (WORK / "verify.txt").write_text(text + "\n")

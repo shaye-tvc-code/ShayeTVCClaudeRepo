@@ -3,7 +3,10 @@
   "timezone": "Australia/Melbourne",
   "promise_business_days": 2,
   "lookback_days": 30,
-  "schedule": { "every_n_days": 2, "anchor_date": "2026-11-10" },
+  "schedule": {
+    "every_n_days": 2,
+    "anchor_date": "2026-11-10"
+  },
   "location_to_3pl": {
     "BTK": "BTK",
     "Precision": "Precision",
@@ -23,7 +26,12 @@
     "spreadsheet_id": "1Ft40Pz5aW5yVD5gsz3lUeRtDvdXiYcDKMS3zhOIXQOg",
     "tab": "Late dispatch",
     "sheet_id": 900200,
-    "first_data_row": 9
+    "first_data_row": 9,
+    "never_mention": [
+      "Precision",
+      "New3PL",
+      "thepg"
+    ]
   },
   "logs_branch": "claude/late-dispatch-logs"
 }

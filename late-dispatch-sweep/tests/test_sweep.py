@@ -304,3 +304,24 @@ def test_fully_dispatched_split_order_unchanged():
                              "2026-11-07T00:00:00Z@SUCCESS@BTK;2026-11-06T00:00:00Z@SUCCESS@New3PL | BTK | -")
     o = s.evaluate(raw, HOL, D(2026, 11, 8), TZ, MAP, 2)
     assert o.dispatched == D(2026, 11, 6) and o.tpl == "Precision" and o.outstanding == 0
+
+
+# ---- the BTK sheet never names another 3PL --------------------------------
+
+def test_btk_never_mention_guard():
+    never = CFG["btk_register"]["never_mention"]
+    assert "Precision" in never and "New3PL" in never
+    assert s.check_never_mention("BTK", [["#5001", "moved to precision"]], never)
+    assert s.check_never_mention("BTK", {"requests": [{"x": "NEW3PL"}]}, never)
+    assert not s.check_never_mention("BTK", [["#5001", "Dispatched late", "BTK email 9 Nov"]], never)
+
+
+def test_btk_rows_never_carry_another_3pl():
+    # A Precision order is never added to the BTK sheet, and BTK rows have no 3PL column.
+    o = orders(line("#1", "2026-11-01T22:00:00Z", assigned="New3PL"),
+               line("#2", "2026-11-01T22:00:00Z", assigned="BTK"))
+    st = s.build_state(BT, [["t"], ["status as at 1 Nov 2026"]] + [[]] * 6 + [["h"]], 100)
+    p = s.plan_sheet(st, o, D(2026, 11, 8))
+    assert [a.number for a in p.appends] == [2]
+    fwd, _ = s.build_requests(st, p)
+    assert not s.check_never_mention("BTK", fwd, CFG["btk_register"]["never_mention"])

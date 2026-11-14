@@ -30,6 +30,7 @@ An order that has had one parcel sent but still has items to come counts as **no
 
 ## Rules it never breaks
 
+- The BTK Service Register (shared with BTK) never mentions Precision, New3PL or any other 3PL. Precision orders never go in it, it has no 3PL column, and the helper stops the run if a planned write, or the sheet itself, contains a term from `btk_register.never_mention` in `config.json`.
 - It never deletes rows. A cancelled order gets "Cancelled in Shopify [date]" in the Fault Log notes, only if they're blank.
 - It never changes Notes / follow-up (Fault Log L), BTK comment (BTK J), or a Status a person set to Customer contacted, Raised with 3PL or Closed.
 - It writes dates as real dates and the order time as a real time, copying the format and dropdown of the row above.

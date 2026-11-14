@@ -20,6 +20,7 @@ Work from the repository root. `H` below means `python3 late-dispatch-sweep/swee
 - Shopify is **read only**: use only `graphql_query`. Never call a mutation.
 - In Google Sheets, write only with `update_spreadsheet`, and only with the request files `H plan` produces, copied exactly. Never edit those files, never write any other cell, never touch the "Register" tab or any tab other than "Late dispatch".
 - Don't print anything that looks like a token or credential.
+- The BTK Service Register is shared with BTK. Never write any mention of Precision, New3PL or any other 3PL to it (the helper also refuses to plan or verify one; see `never_mention` in `config.json`). If `H plan` or `H verify` reports such a mention, stop as the step says and don't try to work around it.
 - If a step fails and these instructions don't say what to do, stop, run `H finish --status failed --note "<what failed>" --push`, and end with that log.
 
 ## 1. Is today a run day?
