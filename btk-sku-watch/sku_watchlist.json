@@ -37,23 +37,23 @@
       "container_qty": 84,
       "product_id": "7952865427549"
     },
-    "JB73771": {
-      "to": "73771",
-      "successor_stock_at_btk": true,
-      "container_qty": 200,
-      "product_id": "7952878698589"
-    },
     "JB73789": {
       "to": "73789",
       "successor_stock_at_btk": true,
       "container_qty": 192,
       "product_id": "7952877158493"
+    }
+  },
+  "completed_switches": {
+    "JB73771": {
+      "to": "73771",
+      "product_id": "7952878698589",
+      "note": "Switch already made in Shopify (seen by the 14 Nov 2026 run). Kept for reference only; the routine does not act on this list."
     },
     "80402": {
       "to": "70958",
-      "successor_stock_at_btk": false,
-      "container_qty": 48,
-      "product_id": "7952879452253"
+      "product_id": "7952879452253",
+      "note": "Switch already made in Shopify (seen by the 14 Nov 2026 run). Kept for reference only; the routine does not act on this list."
     }
   },
   "no_successor": {
