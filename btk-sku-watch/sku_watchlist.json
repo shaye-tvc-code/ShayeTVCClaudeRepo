@@ -67,11 +67,9 @@
     "Z73754"
   ],
   "daily_email": {
-    "_note": "One morning email combining the JB/80402 notices (step C) and the Personalised pair balance alerts (step E). Approval requests stay as their own emails.",
-    "to": "joseph@stackersau.com.au",
-    "cc": [
-      "shaye@vergecollective.com.au"
-    ]
+    "_note": "One 6 am email to Shaye only: JB/80402 notices and the pair balance alerts. Joseph only gets approval requests, DONE replies (in those threads) and Asana tasks.",
+    "to": "shaye@vergecollective.com.au",
+    "cc": []
   },
   "personalised_balance": {
     "_note": "Section E. Each pair shares ONE SKU, so always find products by handle, never by SKU.",
@@ -142,6 +140,112 @@
         "sku": "75341",
         "normal_handle": "taupe-petite-travel-jewellery-box",
         "personalised_handle": "personalised-taupe-petite-travel-jewellery-box"
+      }
+    ]
+  },
+  "order_watch": {
+    "_note": "Part 3 (step G). Read-only order routing checks. Edit these lists freely.",
+    "split_tally_days": 7,
+    "daytime_overlap_minutes": 30,
+    "personalisation_property_keywords": [
+      "personalis",
+      "personaliz",
+      "engrav",
+      "monogram",
+      "initial"
+    ],
+    "earmarked_for_precision": {
+      "part_1": [
+        "73412",
+        "76377",
+        "76380",
+        "76393",
+        "75814",
+        "75782",
+        "75801",
+        "75807",
+        "74306",
+        "73737",
+        "75811",
+        "73790",
+        "76386",
+        "75881",
+        "75800",
+        "75906",
+        "74543",
+        "74398",
+        "76909",
+        "75806",
+        "76385",
+        "76391",
+        "76281",
+        "76201"
+      ],
+      "part_2": [
+        "73788",
+        "75343",
+        "76928",
+        "76929",
+        "76911",
+        "73413"
+      ]
+    }
+  },
+  "personalisation_watch": {
+    "_note": "Part 4 (step H). Products with personalisation switched OFF because Precision had no stock. Find by handle.",
+    "min_available_at_new3pl": 5,
+    "products": [
+      {
+        "sku": "73788",
+        "handle": "blush-supersize-jewellery-box-lid",
+        "title": "Blush Supersize Jewellery Box Lid"
+      },
+      {
+        "sku": "74306",
+        "handle": "blush-sleek-necklace-travel-jewellery-box",
+        "title": "Blush Sleek Necklace Travel Jewellery Box"
+      },
+      {
+        "sku": "JB75423",
+        "handle": "mens-12-sect-mini-cufflink-lid-box-black",
+        "title": "Black Cufflink Box"
+      },
+      {
+        "sku": "73412",
+        "handle": "blush-classic-jewellery-box-set-of-4",
+        "title": "Blush Classic Jewellery Box Set of 4"
+      },
+      {
+        "sku": "73413",
+        "handle": "blush-classic-jewellery-box-set-of-5",
+        "title": "Blush Classic Jewellery Box Set of 5"
+      },
+      {
+        "sku": "75343",
+        "handle": "blush-medium-travel-jewellery-box",
+        "title": "Blush Medium Travel Jewellery Box"
+      },
+      {
+        "sku": "76199",
+        "handle": "white-ring-box",
+        "title": "White Ring Box"
+      },
+      {
+        "sku": "75615",
+        "handle": "oatmeal-mini-jewellery-box-lid",
+        "title": "Oatmeal Mini Jewellery Box Lid"
+      },
+      {
+        "sku": "73755",
+        "handle": "taupe-mini-jewellery-box-lid",
+        "title": "Taupe Mini Jewellery Box Lid"
+      },
+      {
+        "sku": "BND-GB-CLASSIC-BL",
+        "handle": "the-classic-blush-gift-bundle",
+        "title": "The Classic Blush Gift Bundle",
+        "watch_component_handle": "blush-classic-jewellery-box-set-of-4",
+        "watch_component_sku": "73412"
       }
     ]
   }
