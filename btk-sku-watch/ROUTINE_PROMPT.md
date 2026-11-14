@@ -7,6 +7,7 @@
 - Two scheduled tasks (times are Adelaide time, so daylight saving is handled):
   1. **Full run**: `CRON_TZ=Australia/Adelaide 0 6 * * *`. Prompt: `Read btk-sku-watch/ROUTINE_PROMPT.md and follow the Routine section. Run type: FULL.`
   2. **Confirmations**: `CRON_TZ=Australia/Adelaide 0 9,12,15,18 * * *`. Prompt: `Read btk-sku-watch/ROUTINE_PROMPT.md and follow the Routine section. Run type: CONFIRMATIONS ONLY.` (This run type also does the daytime order checks; see step 0.)
+- Plain-English explainer for the team: the "BTK Stock Watch" tab of the Google Doc "Routines and Automations" (internal, never share with BTK): https://docs.google.com/document/d/1ONyBG2WuVbE0WP13OhEEGIhaj01A9Ie7CfTR_jOxaos/edit . **Whenever this routine or its config changes, update that tab in place (same link) and its "Last updated" date.** Follow the doc's Contents tab for how sections are added.
 - Rollout order: `mode` = `chat_test` (interactive test in a chat, nothing sent or changed), then `live_test` (everything real, labelled as a test), then `live`. Change `mode` in `sku_watchlist.json` and merge before each stage.
 
 ---
