@@ -20,13 +20,21 @@
     "spreadsheet_id": "1B09oeIVXPdwKuBtc4UsSeF5_K5z_czdDgh7gUMw7xGk",
     "tab": "Late dispatch",
     "sheet_id": 900100,
-    "first_data_row": 2
+    "first_data_row": 2,
+    "statuses": {
+      "open": "1. Open – overdue",
+      "late": "4. Dispatched late"
+    }
   },
   "btk_register": {
     "spreadsheet_id": "1Ft40Pz5aW5yVD5gsz3lUeRtDvdXiYcDKMS3zhOIXQOg",
     "tab": "Late dispatch",
     "sheet_id": 900200,
     "first_data_row": 9,
+    "statuses": {
+      "open": "Not yet dispatched",
+      "late": "Dispatched late"
+    },
     "never_mention": [
       "Precision",
       "New3PL",

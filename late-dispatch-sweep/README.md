@@ -32,7 +32,9 @@ An order that has had one parcel sent but still has items to come counts as **no
 
 - The BTK Service Register (shared with BTK) never mentions Precision, New3PL or any other 3PL. Precision orders never go in it, it has no 3PL column, and the helper stops the run if a planned write, or the sheet itself, contains a term from `btk_register.never_mention` in `config.json`.
 - It never deletes rows. A cancelled order gets "Cancelled in Shopify [date]" in the Fault Log notes, only if they're blank.
-- It never changes Notes / follow-up (Fault Log L), BTK comment (BTK J), or a Status a person set to Customer contacted, Raised with 3PL or Closed.
+- It never changes Notes / follow-up (Fault Log L), BTK comment (BTK J), or a Status a person set to "2. Raised with 3PL", "3. Customer contacted" or "5. Closed".
+- Statuses it writes come from `statuses` in `config.json`. The Fault Log dropdown is numbered ("1. Open – overdue", "4. Dispatched late"); the BTK tab uses "Not yet dispatched" and "Dispatched late". When it checks whether a row is still open it ignores the leading number, so old "Open – overdue" rows are still recognised.
+- It works by column position, not header name. Fault Log: writes A–L only, reads holidays from N; column M ("Customer context (Viktor)") is never read for logic or written. BTK: writes A–J only, reads holidays from L. Never insert or move columns in either "Late dispatch" tab.
 - It writes dates as real dates and the order time as a real time, copying the format and dropdown of the row above.
 
 ## Try the helper by hand

@@ -39,8 +39,10 @@ WORK = HERE / "work"
 SHEETS_EPOCH = dt.date(1899, 12, 30)
 ERROR_MARKERS = ("#REF!", "#VALUE!", "#NAME?", "#N/A")
 
-FL_OPEN = "Open – overdue"          # en dash, as in the sheet's dropdown
-FL_LATE = "Dispatched late"
+# Defaults; config.json "statuses" overrides them. The Fault Log dropdown is
+# numbered ("1. Open – overdue" ... "5. Closed"); en dash as in the sheet.
+FL_OPEN = "1. Open – overdue"
+FL_LATE = "4. Dispatched late"
 BTK_OPEN = "Not yet dispatched"
 BTK_LATE = "Dispatched late"
 
@@ -292,14 +294,15 @@ class Layout:
 
 def layouts(cfg: dict) -> tuple[Layout, Layout]:
     f, b = cfg["fault_log"], cfg["btk_register"]
+    fs, bs = f.get("statuses", {}), b.get("statuses", {})
     fl = Layout("fault_log", "Order Fault Log", f["spreadsheet_id"], f["tab"], f["sheet_id"],
                 f["first_data_row"], last_col=11, dispatched_col=4, status_col=10, notes_col=11,
-                holiday_col=13, open_status=FL_OPEN, late_status=FL_LATE,
+                holiday_col=13, open_status=fs.get("open", FL_OPEN), late_status=fs.get("late", FL_LATE),
                 date_pattern="ddd d mmm yyyy")
     # BTK column J is "BTK comment": never written, so there is no notes column.
     bt = Layout("btk", "BTK Service Register", b["spreadsheet_id"], b["tab"], b["sheet_id"],
                 b["first_data_row"], last_col=9, dispatched_col=5, status_col=8, notes_col=None,
-                holiday_col=11, open_status=BTK_OPEN, late_status=BTK_LATE,
+                holiday_col=11, open_status=bs.get("open", BTK_OPEN), late_status=bs.get("late", BTK_LATE),
                 date_pattern="d mmm yyyy")
     return fl, bt
 
@@ -323,7 +326,7 @@ def new_row_cells(L: Layout, n: int, o: Order) -> list[dict | None]:
             {"formulaValue": f'=IF(AND(WORKDAY(B{n}-1,1,{h})=B{n},C{n}<IF(H{n}="Precision",'
                              f'TIME(6,0,0),TIME(12,0,0))),B{n},WORKDAY(B{n},1,{h}))'},  # I
             {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(I{n},E{n},{h})-1)'},     # J
-            {"stringValue": FL_LATE if o.dispatched else FL_OPEN},                # K
+            {"stringValue": L.late_status if o.dispatched else L.open_status},    # K
             None,                                                                 # L notes: people only
         ]
     h = "$L$9:$L"
@@ -337,7 +340,7 @@ def new_row_cells(L: Layout, n: int, o: Order) -> list[dict | None]:
         disp,                                                                     # F
         {"formulaValue": f'=IF(F{n}="","",NETWORKDAYS(D{n},F{n},{h})-1)'},        # G
         {"formulaValue": f'=IF(F{n}="","",NETWORKDAYS(B{n}+1,F{n},{h})-2)'},      # H
-        {"stringValue": BTK_LATE if o.dispatched else BTK_OPEN},                  # I
+        {"stringValue": L.late_status if o.dispatched else L.open_status},      # I
         None,                                                                     # J BTK comment
     ]
 
@@ -411,6 +414,13 @@ def _norm_dash(s: str) -> str:
     return re.sub(r"\s*[-–—]\s*", " - ", str(s).strip())
 
 
+def status_key(s) -> str:
+    """Status text for comparing: ignores a leading dropdown number such as
+    "1. " or "4) ", the kind of dash, spacing and case. So "Open – overdue"
+    and "1. Open - overdue" match, but "2. Raised with 3PL" never matches open."""
+    return _norm_dash(re.sub(r"^\s*\d+\s*[.)]\s*", "", str(s))).casefold()
+
+
 def plan_sheet(st: SheetState, orders: dict[int, Order], today: dt.date) -> Plan:
     L, p = st.layout, Plan(st.layout)
     for num, row in sorted(st.by_order.items(), key=lambda kv: kv[1]):
@@ -434,7 +444,7 @@ def plan_sheet(st: SheetState, orders: dict[int, Order], today: dt.date) -> Plan
             if done <= o.due:
                 p.notes.append(f"#{num} (row {row}) dispatched {short_date(done)}, on time by our "
                                "calculation; Status not changed.")
-            elif _norm_dash(r[L.status_col]) == _norm_dash(L.open_status):
+            elif status_key(r[L.status_col]) == status_key(L.open_status):
                 p.changes.append(CellChange(row, L.status_col, r[L.status_col], L.late_status,
                                             f"#{num} now dispatched"))
     for num in sorted(orders):

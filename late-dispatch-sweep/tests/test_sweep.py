@@ -154,7 +154,7 @@ def test_fault_log_fill_dispatched_and_protected_status():
                line("#5034", "2026-10-31T23:00:00Z", "2026-11-06T01:00:00Z"))
     p = s.plan_sheet(st, o, D(2026, 11, 8))
     assert {(c.row, c.col): c.new for c in p.changes} == {
-        (2, 4): D(2026, 11, 6), (2, 10): "Dispatched late", (3, 4): D(2026, 11, 6)}
+        (2, 4): D(2026, 11, 6), (2, 10): "4. Dispatched late", (3, 4): D(2026, 11, 6)}
     assert p.appends == []
 
 
@@ -205,7 +205,7 @@ def test_new_row_formulas_match_live_sheets():
     assert f[8] == {"formulaValue": '=IF(AND(WORKDAY(B55-1,1,$N$2:$N)=B55,C55<IF(H55="Precision",'
                                     'TIME(6,0,0),TIME(12,0,0))),B55,WORKDAY(B55,1,$N$2:$N))'}
     assert f[9] == {"formulaValue": '=IF(E55="","",NETWORKDAYS(I55,E55,$N$2:$N)-1)'}
-    assert f[10] == {"stringValue": "Open – overdue"}
+    assert f[10] == {"stringValue": "1. Open – overdue"}
     b = s.new_row_cells(BT, 61, o)
     assert b[0] == {"stringValue": "#5087"}
     assert b[3] == {"formulaValue": "=IF(AND(WORKDAY(B61-1,1,$L$9:$L)=B61,C61<TIME(12,0,0)),B61,WORKDAY(B61,1,$L$9:$L))"}
@@ -325,3 +325,38 @@ def test_btk_rows_never_carry_another_3pl():
     assert [a.number for a in p.appends] == [2]
     fwd, _ = s.build_requests(st, p)
     assert not s.check_never_mention("BTK", fwd, CFG["btk_register"]["never_mention"])
+
+
+# ---- numbered Fault Log statuses ("1. Open – overdue" ... "5. Closed") ------
+
+def test_config_uses_numbered_fault_log_statuses():
+    assert FL.open_status == "1. Open – overdue" and FL.late_status == "4. Dispatched late"
+    assert BT.open_status == "Not yet dispatched" and BT.late_status == "Dispatched late"
+
+
+def test_status_key():
+    k = s.status_key
+    assert k("1. Open – overdue") == k("Open – overdue") == k("Open - overdue") == k(" 1) open — Overdue ")
+    for other in ("2. Raised with 3PL", "3. Customer contacted", "4. Dispatched late", "5. Closed"):
+        assert k(other) != k("Open – overdue")
+
+
+def test_numbered_and_old_open_rows_flip_but_manual_statuses_stay():
+    st = s.build_state(FL, fl_values([fl_row(5008, status="1. Open – overdue"),
+                                      fl_row(5009, status="Open – overdue"),
+                                      fl_row(5010, status="2. Raised with 3PL"),
+                                      fl_row(5011, status="3. Customer contacted"),
+                                      fl_row(5012, status="5. Closed")]), 498)
+    o = orders(*[line(f"#{n}", "2026-10-29T01:00:00Z", "2026-11-06T01:00:00Z") for n in range(5008, 5013)])
+    p = s.plan_sheet(st, o, D(2026, 11, 8))
+    status = {c.row: c.new for c in p.changes if c.col == FL.status_col}
+    assert status == {2: "4. Dispatched late", 3: "4. Dispatched late"}
+    assert {c.row for c in p.changes if c.col == FL.dispatched_col} == {2, 3, 4, 5, 6}
+
+
+def test_new_fault_log_rows_use_dropdown_values():
+    o = orders(line("#5300", "2026-11-01T22:00:00Z", "2026-11-06T01:00:00Z"),
+               line("#5301", "2026-11-01T22:00:00Z"))
+    assert s.new_row_cells(FL, 70, o[5300])[10] == {"stringValue": "4. Dispatched late"}
+    assert s.new_row_cells(FL, 71, o[5301])[10] == {"stringValue": "1. Open – overdue"}
+    assert s.new_row_cells(BT, 70, o[5301])[8] == {"stringValue": "Not yet dispatched"}
