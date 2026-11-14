@@ -20,6 +20,7 @@ Work from the repository root. `H` below means `python3 late-dispatch-sweep/swee
 - Shopify is **read only**: use only `graphql_query`. Never call a mutation.
 - In Google Sheets, write only with `update_spreadsheet`, and only with the request files `H plan` produces, copied exactly. Never edit those files, never write any other cell, never touch the "Register" tab or any tab other than "Late dispatch".
 - Don't print anything that looks like a token or credential.
+- The BTK Service Register is shared with BTK. Never write any mention of Precision, New3PL or any other 3PL to it (the helper also refuses to plan or verify one; see `never_mention` in `config.json`). If `H plan` or `H verify` reports such a mention, stop as the step says and don't try to work around it.
 - If a step fails and these instructions don't say what to do, stop, run `H finish --status failed --note "<what failed>" --push`, and end with that log.
 
 ## 1. Is today a run day?
@@ -36,13 +37,15 @@ Create `late-dispatch-sweep/work/` if it doesn't exist and empty it.
 2. Call `graphql_query` with `first: 100`, variables `{"first": 100, "q": "created_at:>='<start>'"}` and this query, and page with `after` = `endCursor` until `hasNextPage` is false:
 
    ```graphql
-   query($first:Int!,$after:String,$q:String){ orders(first:$first, after:$after, query:$q, sortKey:CREATED_AT){ pageInfo{hasNextPage endCursor} nodes{ name createdAt cancelledAt tags displayFulfillmentStatus purchasingEntity{ __typename } fulfillments(first:5){ createdAt status location{ name } } fulfillmentOrders(first:5){ nodes{ assignedLocation{ name } } } lineItems(first:50){ nodes{ requiresShipping } } } } }
+   query($first:Int!,$after:String,$q:String){ orders(first:$first, after:$after, query:$q, sortKey:CREATED_AT){ pageInfo{hasNextPage endCursor} nodes{ name createdAt cancelledAt tags displayFulfillmentStatus purchasingEntity{ __typename } fulfillments(first:5){ createdAt status location{ name } } fulfillmentOrders(first:5){ nodes{ status assignedLocation{ name } lineItems(first:30){ nodes{ remainingQuantity } } } } lineItems(first:50){ nodes{ requiresShipping } } } } }
    ```
+
+   If Shopify rejects the query as too costly, use `first: 50` (then 25) instead of 100 and page the same way.
 
 3. Write **every** order to `late-dispatch-sweep/work/orders.txt`, one line each, fields separated by ` | `:
 
    ```
-   name | createdAt | cancelledAt | tags | purchasingEntity | shippable | fulfilments | assigned
+   name | createdAt | cancelledAt | tags | purchasingEntity | shippable | fulfilments | assigned | outstanding
    ```
 
    - `name`, `createdAt`, `cancelledAt`: exactly as Shopify returns them (`cancelledAt` null → `-`).
@@ -51,12 +54,14 @@ Create `late-dispatch-sweep/work/` if it doesn't exist and empty it.
    - `shippable`: `Y` if any line item has `requiresShipping: true`, otherwise `N`.
    - `fulfilments`: every fulfilment as `createdAt@status@location name`, joined with `;`, or `-` if none.
    - `assigned`: the first non-empty `fulfillmentOrders.nodes[].assignedLocation.name`, or `-`.
+   - `outstanding`: items the customer is still waiting for. Add up `remainingQuantity` over every fulfillment order whose `status` is `OPEN`, `IN_PROGRESS`, `SCHEDULED` or `ON_HOLD`. If the total is above 0, write `<total>@<location>`, where location is the `assignedLocation.name` of the first of those fulfillment orders with `remainingQuantity` above 0 (e.g. `1@New3PL`). Otherwise write `-`. This is how part-dispatched orders (one parcel sent, items still to come) are caught: the helper treats them as not yet dispatched.
 
    Examples:
    ```
-   #5034 | 2026-10-31T22:38:36Z | - | - | Customer | Y | 2026-11-05T23:45:50Z@SUCCESS@BTK | BTK
-   #5087 | 2026-11-04T08:17:07Z | - | - | Customer | Y | - | New3PL
-   #5092 | 2026-11-05T07:28:49Z | 2026-11-05T07:30:55Z | - | Customer | Y | - | BTK
+   #5034 | 2026-10-31T22:38:36Z | - | - | Customer | Y | 2026-11-05T23:45:50Z@SUCCESS@BTK | BTK | -
+   #5087 | 2026-11-04T08:17:07Z | - | - | Customer | Y | - | New3PL | 3@New3PL
+   #5092 | 2026-11-05T07:28:49Z | 2026-11-05T07:30:55Z | - | Customer | Y | - | BTK | -
+   #5079 | 2026-11-04T00:46:47Z | - | - | Customer | Y | 2026-11-06T03:19:39Z@SUCCESS@BTK | BTK | 1@BTK
    ```
 
    Copy values character for character; don't round or reformat timestamps. Keep a count of the orders Shopify returned; you will check it in step 5.

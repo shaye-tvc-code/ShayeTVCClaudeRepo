@@ -267,7 +267,9 @@ Add a table to the run log: SKU, `N_btk`, `N_3pl`, `P_btk`, `P_3pl`, `wN`, `wP`,
 ### G1. Read the orders
 
 - **Which orders (FULL run):** every order that isn't cancelled and either was placed since the previous FULL run (minus `order_watch.daytime_overlap_minutes`), or still has an open part. For the 7-day list in R1, also read every non-cancelled order placed in the last `order_watch.split_tally_days` days.
-- **For each order, read its fulfillment orders** (the "parts"): status, assigned location, and each line's SKU, product handle, product ID, quantity, remaining quantity and line item properties (custom attributes).
+- **Ignore** every order in `order_watch.ignore_orders`, everywhere in step G (R1–R4, the 7-day list, and the R2 stock maths).
+- **Match warehouses by location ID, never by name.** A part is "at BTK" or "at New3PL" when its `assignedLocation.location.id` equals the ID of `shopify_location` or `precision_location` found in step 0. Shopify keeps a location's old name on older orders (BTK used to be called "Warehouse"), so names can't be trusted. Ignore parts at any other location.
+- **For each order, read its fulfillment orders** (the "parts"): status, assigned location (with its ID), and each line's SKU, product handle, product ID, quantity, remaining quantity and line item properties (custom attributes).
   - An **open part** has status OPEN, IN_PROGRESS, SCHEDULED or ON_HOLD.
   - A **fulfilled part** has status CLOSED and at least one unit fulfilled.
   - Ignore cancelled parts.
