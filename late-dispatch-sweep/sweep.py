@@ -138,7 +138,7 @@ def hhmm(t: dt.time) -> str:
 def parse_order_line(line: str) -> dict:
     """One order per line, fields separated by ' | ':
 
-      name | createdAt | cancelledAt | tags | purchasingEntity | shippable | fulfilments | assigned
+      name | createdAt | cancelledAt | tags | purchasingEntity | shippable | fulfilments | assigned | outstanding
 
       name             #5086
       createdAt        2026-11-04T07:27:03Z (UTC, as Shopify returns it)
@@ -148,11 +148,22 @@ def parse_order_line(line: str) -> dict:
       shippable        Y if any line item has requiresShipping true, else N
       fulfilments      createdAt@status@location;createdAt@status@location... or -
       assigned         first fulfillmentOrders assignedLocation name, or -
+      outstanding      units still to ship and where, as <units>@<location name> (the
+                       location of the first open fulfillment order with items left), or -
+                       Optional: older 8-field lines are read as outstanding = -.
     """
     p = [x.strip() for x in line.split(" | ")]
-    if len(p) != 8:
-        raise SweepError(f"orders.txt line has {len(p)} fields, expected 8: {line!r}")
-    name, created, cancelled, tags, pe, ship, fuls, assigned = p
+    if len(p) == 8:
+        p.append("-")
+    if len(p) != 9:
+        raise SweepError(f"orders.txt line has {len(p)} fields, expected 9: {line!r}")
+    name, created, cancelled, tags, pe, ship, fuls, assigned, outs = p
+    out_units, out_loc = 0, None
+    if outs != "-":
+        u, sep, loc = outs.partition("@")
+        if not sep or not u.strip().isdigit() or not loc.strip():
+            raise SweepError(f"outstanding must be <units>@<location> or - in line {line!r}")
+        out_units, out_loc = int(u), loc.strip()
     fl = []
     if fuls != "-":
         for f in fuls.split(";"):
@@ -165,7 +176,8 @@ def parse_order_line(line: str) -> dict:
     return {"name": name, "createdAt": created, "cancelledAt": None if cancelled == "-" else cancelled,
             "tags": [] if tags == "-" else [t.strip() for t in tags.split(",")],
             "purchasingEntity": None if pe == "-" else pe, "shippable": ship == "Y",
-            "fulfillments": fl, "assigned": None if assigned == "-" else assigned}
+            "fulfillments": fl, "assigned": None if assigned == "-" else assigned,
+            "outstanding": out_units, "outstanding_location": out_loc}
 
 
 def load_orders(path: Path) -> dict[int, dict]:
@@ -188,6 +200,8 @@ class Order:
     tpl: str | None
     late: bool
     excluded: str | None = None
+    completed: dt.date | None = None   # last parcel's date, once nothing is left to ship
+    outstanding: int = 0               # units still to ship (part-dispatched orders)
 
     @property
     def order_date(self) -> dt.date:
@@ -222,6 +236,13 @@ def evaluate(raw: dict, holidays: set[dt.date], today: dt.date, tz: ZoneInfo,
     dispatched = to_local(good[0]["createdAt"], tz).date() if good else None
     location = (good[0]["location"] if good and good[0]["location"] not in ("", "-") else None) \
         or raw.get("assigned")
+    outstanding = raw.get("outstanding", 0)
+    completed = to_local(good[-1]["createdAt"], tz).date() if good and not outstanding else None
+    if outstanding and good:
+        # Part dispatched: the customer is still waiting for the rest, so the
+        # order counts as not yet dispatched, against whoever holds the rest.
+        dispatched = None
+        location = raw.get("outstanding_location") or location
     tpl, _ = map_3pl(location, mapping)
     late = dispatched > due if dispatched else today > due
 
@@ -244,7 +265,7 @@ def evaluate(raw: dict, holidays: set[dt.date], today: dt.date, tz: ZoneInfo,
 
     c = to_local(raw["cancelledAt"], tz)
     return Order(order_number(raw["name"]), placed, due, dispatched, c.date() if c else None,
-                 location, tpl, late, excluded)
+                 location, tpl, late, excluded, completed, outstanding if good else 0)
 
 
 # --------------------------------------------------------------------------
@@ -405,10 +426,13 @@ def plan_sheet(st: SheetState, orders: dict[int, Order], today: dt.date) -> Plan
                 p.notes.append(f"#{num} (row {row}) was cancelled in Shopify on {short_date(o.cancelled)}; "
                                "left unchanged (this tab has no notes column we may write).")
             continue
+        done = o.completed or o.dispatched
         if _blank(r[L.dispatched_col]) and o.dispatched:
-            p.changes.append(CellChange(row, L.dispatched_col, "", o.dispatched, f"#{num} now fulfilled"))
-            if o.dispatched <= o.due:
-                p.notes.append(f"#{num} (row {row}) dispatched {short_date(o.dispatched)}, on time by our "
+            # The row was open last time, so record when the whole order went
+            # out (the last parcel), not the first parcel.
+            p.changes.append(CellChange(row, L.dispatched_col, "", done, f"#{num} now fulfilled"))
+            if done <= o.due:
+                p.notes.append(f"#{num} (row {row}) dispatched {short_date(done)}, on time by our "
                                "calculation; Status not changed.")
             elif _norm_dash(r[L.status_col]) == _norm_dash(L.open_status):
                 p.changes.append(CellChange(row, L.status_col, r[L.status_col], L.late_status,
@@ -531,6 +555,8 @@ def describe(plan: Plan, st: SheetState, cutoffs: dict[str, dt.time]) -> list[st
                 disp = (f"dispatched {short_date(o.dispatched)} "
                         f"(+{networkdays(o.order_date + dt.timedelta(days=1), o.dispatched, st.holidays) - 2} bd late, "
                         f"{networkdays(rec, o.dispatched, st.holidays) - 1} bd after cut-off)")
+            elif o.outstanding:
+                disp = f"part dispatched, {o.outstanding} unit(s) still to ship"
             else:
                 disp = "not dispatched"
             tpl = f" | {o.tpl}" if L.key == "fault_log" else ""

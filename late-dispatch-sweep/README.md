@@ -24,6 +24,10 @@ It uses your **Shopify** and **Google Sheets** connectors. No service account, A
 - `tests/test_sweep.py`: rule tests (`python3 -m pytest late-dispatch-sweep/tests`).
 - Logs: `logs/YYYY-MM-DD.txt`, pushed to the `claude/late-dispatch-logs` branch after each run.
 
+## Part-dispatched orders
+
+An order that has had one parcel sent but still has items to come counts as **not yet dispatched** (the customer is still waiting), against the warehouse that holds the rest. When the last parcel goes, an open row gets the last parcel's date. Orders with nothing left to ship keep the original rule: the first parcel's date counts.
+
 ## Rules it never breaks
 
 - It never deletes rows. A cancelled order gets "Cancelled in Shopify [date]" in the Fault Log notes, only if they're blank.

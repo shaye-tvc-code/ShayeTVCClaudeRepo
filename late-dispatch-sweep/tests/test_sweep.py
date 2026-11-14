@@ -250,3 +250,57 @@ def test_should_run(capsys):
     s.cmd_should_run(CFG, type("A", (), {"today": "2026-12-01"}))   # 21 days after anchor
     out = capsys.readouterr().out.split("\n")
     assert out[0].startswith("RUN") and out[1].startswith("SKIP") and out[2].startswith("SKIP")
+
+
+# ---- part-dispatched orders ------------------------------------------------
+
+def test_outstanding_field_parsing():
+    o = s.parse_order_line("#7 | 2026-11-01T00:00:00Z | - | - | Customer | Y | - | BTK | 2@New3PL")
+    assert o["outstanding"] == 2 and o["outstanding_location"] == "New3PL"
+    o = s.parse_order_line("#7 | 2026-11-01T00:00:00Z | - | - | Customer | Y | - | BTK")   # old 8-field line
+    assert o["outstanding"] == 0 and o["outstanding_location"] is None
+    with pytest.raises(s.SweepError):
+        s.parse_order_line("#7 | 2026-11-01T00:00:00Z | - | - | Customer | Y | - | BTK | two@BTK")
+
+
+def test_part_dispatched_order_counts_as_not_dispatched():
+    # Like #5001: placed Wed 28 Oct, one parcel from BTK on Fri 30 Oct (on time),
+    # one item moved to New3PL and still waiting on Sun 8 Nov.
+    raw = s.parse_order_line("#5001 | 2026-10-27T14:03:48Z | - | - | Customer | Y | "
+                             "2026-10-30T01:26:44Z@SUCCESS@BTK | BTK | 1@New3PL")
+    o = s.evaluate(raw, HOL, D(2026, 11, 8), TZ, MAP, 2)
+    assert o.dispatched is None and o.late and o.outstanding == 1
+    assert o.location == "New3PL" and o.tpl == "Precision"
+    p = s.plan_sheet(s.build_state(FL, [["h"]], 100), {5001: o}, D(2026, 11, 8))
+    assert [a.number for a in p.appends] == [5001]
+    assert "part dispatched, 1 unit(s) still to ship" in "\n".join(s.describe(p, s.build_state(FL, [["h"]], 100),
+                                                                              {"BTK": dt.time(12), "Precision": dt.time(6)}))
+
+
+def test_part_dispatched_not_late_yet_is_left_alone():
+    raw = s.parse_order_line("#9 | 2026-11-03T22:00:00Z | - | - | Customer | Y | "
+                             "2026-11-04T01:00:00Z@SUCCESS@BTK | BTK | 1@BTK")
+    o = s.evaluate(raw, HOL, D(2026, 11, 5), TZ, MAP, 2)     # due Fri 6
+    assert o.dispatched is None and not o.late
+
+
+def test_open_row_filled_with_last_parcel_date_when_complete():
+    # Row added while part dispatched; now both parcels are out (30 Oct and 10 Nov).
+    raw = s.parse_order_line("#5001 | 2026-10-27T14:03:48Z | - | - | Customer | Y | "
+                             "2026-10-30T01:26:44Z@SUCCESS@BTK;2026-11-10T01:00:00Z@SUCCESS@New3PL | BTK | -")
+    o = s.evaluate(raw, HOL, D(2026, 11, 12), TZ, MAP, 2)
+    assert o.dispatched == D(2026, 10, 30) and o.completed == D(2026, 11, 10)
+    values = [["h"]] + [[""]] * 0 + [["5001", "", "", "", "", "", "", "Precision", "", "", s.FL_OPEN]]
+    st = s.build_state(FL, values, 100)
+    p = s.plan_sheet(st, {5001: o}, D(2026, 11, 12))
+    filled = [c for c in p.changes if c.col == FL.dispatched_col]
+    assert filled and filled[0].new == D(2026, 11, 10)
+    assert any(c.col == FL.status_col and c.new == s.FL_LATE for c in p.changes)
+
+
+def test_fully_dispatched_split_order_unchanged():
+    # Existing rule kept for orders with nothing left: first parcel counts.
+    raw = s.parse_order_line("#3 | 2026-11-01T22:00:00Z | - | - | Customer | Y | "
+                             "2026-11-07T00:00:00Z@SUCCESS@BTK;2026-11-06T00:00:00Z@SUCCESS@New3PL | BTK | -")
+    o = s.evaluate(raw, HOL, D(2026, 11, 8), TZ, MAP, 2)
+    assert o.dispatched == D(2026, 11, 6) and o.tpl == "Precision" and o.outstanding == 0

@@ -189,7 +189,19 @@
         "76911",
         "73413"
       ]
-    }
+    },
+    "ignore_orders": [
+      "#3483",
+      "#3496",
+      "#3881",
+      "#4116",
+      "#4117",
+      "#4164",
+      "#4724",
+      "#4739",
+      "#4742"
+    ],
+    "_ignore_orders_note": "Old orders from before the BTK location was renamed (they show as 'Warehouse'). Shaye said to ignore them (14 Nov 2026). Skip them everywhere in step G, including the R2 stock maths."
   },
   "personalisation_watch": {
     "_note": "Part 4 (step H). Products with personalisation switched OFF because Precision had no stock. Find by handle.",
