@@ -1,0 +1,32 @@
+=== Run at 2026-11-16 06:46 Melbourne: OK ===
+Late dispatch sweep, Mon 16 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 401 placed in the last 30 days
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 60, Precision 3
+New late orders by 3PL: BTK 1, Precision 2
+New rows: Fault Log 3, BTK 1
+Cells to update: Fault Log 2, BTK 3
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add 3 row(s) from row 66:
+  row 66: #4959 | 24 Oct 2026 13:57 | received 26 Oct 2026 | due 27 Oct 2026 | part dispatched, 1 unit(s) still to ship | BTK | 1. Open – overdue
+  row 67: #5001 | 28 Oct 2026 01:03 | received 28 Oct 2026 | due 30 Oct 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 68: #5079 | 4 Nov 2026 11:46 | received 5 Nov 2026 | due 6 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+Change 2 cell(s):
+  E5: (blank) -> 14 Nov 2026   (#5086 now fulfilled)
+  K5: 1. Open – overdue -> 4. Dispatched late   (#5086 now dispatched)
+
+== BTK Service Register / Late dispatch ==
+Add 1 row(s) from row 69:
+  row 69: #4959 | 24 Oct 2026 13:57 | received 26 Oct 2026 | due 27 Oct 2026 | part dispatched, 1 unit(s) still to ship | Not yet dispatched
+Change 3 cell(s):
+  F61: (blank) -> 14 Nov 2026   (#5086 now fulfilled)
+  I61: Not yet dispatched -> Dispatched late   (#5086 now dispatched)
+  A2: status as at 14 November 2026 -> status as at 16 November 2026   (status date)
+
+Writes needed: fault_log, btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: none
+
