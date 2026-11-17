@@ -1,0 +1,102 @@
+=== Run at 2026-11-18 06:49 Melbourne: OK ===
+Late dispatch sweep, Wed 18 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 451 placed in the last 30 days
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 60, Precision 75
+New late orders by 3PL: BTK 1, Precision 72
+New rows: Fault Log 73, BTK 1
+Cells to update: Fault Log 2, BTK 3
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add 73 row(s) from row 69:
+  row 69: #5160 | 13 Nov 2026 16:07 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 70: #5161 | 13 Nov 2026 16:08 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 71: #5162 | 13 Nov 2026 16:08 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 72: #5163 | 13 Nov 2026 16:15 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 73: #5164 | 13 Nov 2026 16:16 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 74: #5169 | 13 Nov 2026 18:19 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 75: #5172 | 13 Nov 2026 18:45 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 76: #5173 | 13 Nov 2026 18:51 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 77: #5177 | 13 Nov 2026 19:29 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 78: #5179 | 13 Nov 2026 19:37 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 79: #5181 | 13 Nov 2026 19:57 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 5 unit(s) still to ship | Precision | 1. Open – overdue
+  row 80: #5183 | 13 Nov 2026 20:26 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 81: #5184 | 13 Nov 2026 20:33 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 82: #5185 | 13 Nov 2026 21:06 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 83: #5186 | 13 Nov 2026 21:09 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 84: #5188 | 13 Nov 2026 21:14 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 3 unit(s) still to ship | Precision | 1. Open – overdue
+  row 85: #5189 | 13 Nov 2026 21:44 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 86: #5190 | 13 Nov 2026 21:52 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 87: #5191 | 13 Nov 2026 22:28 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 88: #5192 | 13 Nov 2026 22:48 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 89: #5193 | 13 Nov 2026 23:01 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 6 unit(s) still to ship | Precision | 1. Open – overdue
+  row 90: #5195 | 13 Nov 2026 23:16 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 91: #5196 | 13 Nov 2026 23:22 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 92: #5197 | 14 Nov 2026 06:20 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 93: #5199 | 14 Nov 2026 07:15 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 94: #5202 | 14 Nov 2026 08:55 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 95: #5203 | 14 Nov 2026 09:09 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 96: #5204 | 14 Nov 2026 09:20 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 97: #5205 | 14 Nov 2026 09:52 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 98: #5206 | 14 Nov 2026 11:21 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 3 unit(s) still to ship | Precision | 1. Open – overdue
+  row 99: #5208 | 14 Nov 2026 12:06 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 100: #5209 | 14 Nov 2026 12:40 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 101: #5211 | 14 Nov 2026 12:47 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 102: #5212 | 14 Nov 2026 13:32 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 103: #5213 | 14 Nov 2026 13:57 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 104: #5215 | 14 Nov 2026 15:53 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 5 unit(s) still to ship | Precision | 1. Open – overdue
+  row 105: #5216 | 14 Nov 2026 16:53 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 106: #5217 | 14 Nov 2026 16:56 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 2 unit(s) still to ship | Precision | 1. Open – overdue
+  row 107: #5219 | 14 Nov 2026 17:13 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 108: #5221 | 14 Nov 2026 18:02 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 109: #5222 | 14 Nov 2026 18:09 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 110: #5225 | 14 Nov 2026 18:38 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 111: #5227 | 14 Nov 2026 19:05 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 3 unit(s) still to ship | Precision | 1. Open – overdue
+  row 112: #5228 | 14 Nov 2026 20:01 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 113: #5230 | 14 Nov 2026 21:04 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 114: #5231 | 14 Nov 2026 22:01 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | BTK | 1. Open – overdue
+  row 115: #5233 | 15 Nov 2026 00:35 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 116: #5234 | 15 Nov 2026 00:39 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 117: #5235 | 15 Nov 2026 06:02 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 118: #5236 | 15 Nov 2026 07:35 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 119: #5237 | 15 Nov 2026 08:23 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 120: #5238 | 15 Nov 2026 09:00 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 121: #5239 | 15 Nov 2026 09:40 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 122: #5242 | 15 Nov 2026 10:25 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 123: #5244 | 15 Nov 2026 12:01 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 124: #5245 | 15 Nov 2026 12:12 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 125: #5246 | 15 Nov 2026 12:28 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 126: #5253 | 15 Nov 2026 15:08 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 127: #5255 | 15 Nov 2026 15:45 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 128: #5256 | 15 Nov 2026 15:57 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 129: #5257 | 15 Nov 2026 16:13 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 130: #5260 | 15 Nov 2026 17:50 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 131: #5263 | 15 Nov 2026 19:35 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 132: #5265 | 15 Nov 2026 20:25 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 133: #5266 | 15 Nov 2026 21:06 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 134: #5267 | 15 Nov 2026 21:13 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 135: #5268 | 15 Nov 2026 21:44 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 136: #5269 | 15 Nov 2026 21:53 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 137: #5270 | 15 Nov 2026 21:58 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 138: #5271 | 15 Nov 2026 22:14 | received 16 Nov 2026 | due 17 Nov 2026 | part dispatched, 5 unit(s) still to ship | Precision | 1. Open – overdue
+  row 139: #5272 | 15 Nov 2026 22:17 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 140: #5274 | 15 Nov 2026 22:55 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 141: #5275 | 15 Nov 2026 23:59 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+Change 2 cell(s):
+  E66: (blank) -> 16 Nov 2026   (#4959 now fulfilled)
+  K66: 1. Open – overdue -> 4. Dispatched late   (#4959 now dispatched)
+
+== BTK Service Register / Late dispatch ==
+Add 1 row(s) from row 70:
+  row 70: #5231 | 14 Nov 2026 22:01 | received 16 Nov 2026 | due 17 Nov 2026 | not dispatched | Not yet dispatched
+Change 3 cell(s):
+  F12: (blank) -> 16 Nov 2026   (#4959 now fulfilled)
+  I12: Not yet dispatched -> Dispatched late   (#4959 now dispatched)
+  A2: status as at 16 November 2026 -> status as at 18 November 2026   (status date)
+
+Writes needed: fault_log, btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: Connector returned no revisionId, so writes ran without writeControl. #5160 and #5162 are FULFILLMENT_NOT_REQUIRED in Shopify (closed, nothing outstanding) but were logged as not dispatched; review.
+
