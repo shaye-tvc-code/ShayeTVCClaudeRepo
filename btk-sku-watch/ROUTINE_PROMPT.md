@@ -236,7 +236,7 @@ D2. **Asana task** (if there isn't already an incomplete task with this old SKU 
 
 ## E. Personalised pair balance (FULL runs only)
 
-**What this is for.** Personalised orders must ship from Precision (Shopify location New3PL). To make that happen, Shopify has 13 "Personalised" lookalike products. Each is a copy of a normal product with the SAME SKU, stocked only at New3PL. Because they are separate products, each keeps its own stock count. Precision's real stock is split by hand between the normal product and its Personalised twin, but in Precision's warehouse it is one pile. This step warns Shaye when that split needs fixing.
+**What this is for.** Personalised orders must ship from Precision (Shopify location New3PL). To make that happen, Shopify has "Personalised" lookalike products (18 as at 19 Nov 2026; the pairs list in sku_watchlist.json is the source of truth). Each is a copy of a normal product with the SAME SKU, stocked only at New3PL. Because they are separate products, each keeps its own stock count. Precision's real stock is split by hand between the normal product and its Personalised twin, but in Precision's warehouse it is one pile. This step warns Shaye when that split needs fixing.
 
 **This step only reads stock and works out alerts.** It never changes stock, products or SKUs. Its alerts go in the morning email and its numbers are saved in the state record (both in step F).
 

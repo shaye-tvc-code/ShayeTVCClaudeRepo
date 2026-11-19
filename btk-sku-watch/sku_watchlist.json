@@ -140,6 +140,31 @@
         "sku": "75341",
         "normal_handle": "taupe-petite-travel-jewellery-box",
         "personalised_handle": "personalised-taupe-petite-travel-jewellery-box"
+      },
+      {
+        "sku": "70957",
+        "normal_handle": "white-classic-jewellery-box-lid",
+        "personalised_handle": "personalised-white-classic-jewellery-box-lid"
+      },
+      {
+        "sku": "76181",
+        "normal_handle": "orange-petite-travel-jewellery-box",
+        "personalised_handle": "personalised-orange-petite-travel-jewellery-box"
+      },
+      {
+        "sku": "75775",
+        "normal_handle": "taupe-jewellery-roll",
+        "personalised_handle": "personalised-taupe-medium-travel-jewellery-roll"
+      },
+      {
+        "sku": "75758",
+        "normal_handle": "blush-jewellery-roll",
+        "personalised_handle": "personalised-blush-medium-travel-jewellery-roll"
+      },
+      {
+        "sku": "73793",
+        "normal_handle": "taupe-supersize-jewellery-box",
+        "personalised_handle": "personalised-taupe-supersize-jewellery-box"
       }
     ]
   },
