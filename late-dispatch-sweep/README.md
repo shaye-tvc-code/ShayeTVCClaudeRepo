@@ -28,6 +28,10 @@ It uses your **Shopify** and **Google Sheets** connectors. No service account, A
 
 An order that has had one parcel sent but still has items to come counts as **not yet dispatched** (the customer is still waiting), against the warehouse that holds the rest. When the last parcel goes, an open row gets the last parcel's date. Orders with nothing left to ship keep the original rule: the first parcel's date counts.
 
+## Personalised (monogrammed) orders
+
+Orders tagged **Personalisation** don't use the 2-business-day promise. Precision sends personalised items to the monogrammer once a week, on Wednesday (orders placed before 6:00am Wednesday make that week's batch), and they ship to the customer on the Friday of the same week. So a personalised order is due on that Friday (or the next business day if it's a public holiday), and it's only logged as late if Shopify shows no fulfilment by then. In the Fault Log such a row has the batch Friday as a date in Due by (D), Business days over promise (G) counted from that Friday, and a note in L. Settings: `personalisation` in `config.json`. A split order (some items from BTK) gets the batch date for the whole order.
+
 ## Rules it never breaks
 
 - The BTK Service Register (shared with BTK) never mentions Precision, New3PL or any other 3PL. Precision orders never go in it, it has no 3PL column, and the helper stops the run if a planned write, or the sheet itself, contains a term from `btk_register.never_mention` in `config.json`.

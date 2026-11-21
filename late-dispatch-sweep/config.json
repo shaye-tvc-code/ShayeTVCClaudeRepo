@@ -16,6 +16,12 @@
     "BTK": "12:00",
     "Precision": "06:00"
   },
+  "personalisation": {
+    "tag": "Personalisation",
+    "batch_weekday": "Wednesday",
+    "batch_cutoff": "06:00",
+    "ship_weekday": "Friday"
+  },
   "fault_log": {
     "spreadsheet_id": "1B09oeIVXPdwKuBtc4UsSeF5_K5z_czdDgh7gUMw7xGk",
     "tab": "Late dispatch",

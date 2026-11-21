@@ -360,3 +360,72 @@ def test_new_fault_log_rows_use_dropdown_values():
     assert s.new_row_cells(FL, 70, o[5300])[10] == {"stringValue": "4. Dispatched late"}
     assert s.new_row_cells(FL, 71, o[5301])[10] == {"stringValue": "1. Open – overdue"}
     assert s.new_row_cells(BT, 70, o[5301])[8] == {"stringValue": "Not yet dispatched"}
+
+
+# ---- personalised orders: weekly monogram batch ------------------------------
+# Precision sends the batch to the monogrammer on Wednesday (orders placed before
+# 6:00am Wednesday make it) and it ships to customers on the Friday of that week.
+
+PERS = CFG["personalisation"]
+
+
+def pev(ln, today=D(2026, 11, 21), hol=HOL):
+    return s.evaluate(s.parse_order_line(ln), hol, today, TZ, MAP, 2, PERS)
+
+
+def test_personalised_config():
+    assert PERS == {"tag": "Personalisation", "batch_weekday": "Wednesday",
+                    "batch_cutoff": "06:00", "ship_weekday": "Friday"}
+
+
+def test_personalised_due_dates_from_last_weeks_batch():
+    due = lambda y, m, d, hh, mm, hol=HOL: s.personalised_due(dt.datetime(y, m, d, hh, mm), PERS, hol)  # noqa: E731
+    assert due(2026, 11, 13, 21, 52) == D(2026, 11, 20)   # #5190 Fri 13 Nov -> batch Wed 18 -> Fri 20
+    assert due(2026, 11, 17, 22, 49) == D(2026, 11, 20)   # #5352 Tue 17 Nov 10:49pm -> same batch
+    assert due(2026, 11, 18, 5, 59) == D(2026, 11, 20)    # Wed before 6:00am -> this week's batch
+    assert due(2026, 11, 18, 6, 0) == D(2026, 11, 27)     # Wed from 6:00am -> next week's batch
+    assert due(2026, 11, 18, 16, 24) == D(2026, 11, 27)   # #5378 Wed 4:24pm
+    assert due(2026, 11, 19, 9, 0) == D(2026, 11, 27)     # Thu
+    xmas = {D(2026, 12, 25), D(2026, 12, 28)}             # Christmas Fri, Boxing Day observed Mon
+    assert due(2026, 12, 21, 9, 0, xmas) == D(2026, 12, 29)
+
+
+def test_personalised_order_shipped_in_batch_is_not_late():
+    # #5190: placed Fri 13 Nov, fulfilled Thu 19 Nov (Precision's batch record)
+    o = pev(line("#5190", "2026-11-13T10:52:03Z", "2026-11-19T05:48:27Z", loc="New3PL",
+                 assigned="New3PL", tags="Personalisation"))
+    assert o.personalised and o.due == D(2026, 11, 20) and not o.late
+    # Without the tag the same order would be late under the 2-day promise
+    plain = pev(line("#5190", "2026-11-13T10:52:03Z", "2026-11-19T05:48:27Z", loc="New3PL", assigned="New3PL"))
+    assert not plain.personalised and plain.late
+
+
+def test_personalised_missed_batch_is_late_and_logged():
+    ln = line("#5378", "2026-11-18T05:24:54Z", loc="New3PL", assigned="New3PL", tags="Loyalty,personalisation")
+    assert not pev(ln, today=D(2026, 11, 27)).late        # due Fri 27 Nov
+    o = pev(ln, today=D(2026, 11, 28))
+    assert o.personalised and o.late and o.tpl == "Precision"
+    st = s.build_state(FL, fl_values([fl_row(5008, disp="x")]), 498)
+    p = s.plan_sheet(st, {5378: o}, D(2026, 11, 28))
+    assert [a.number for a in p.appends] == [5378]
+    cells = s.new_row_cells(FL, 3, o)
+    assert cells[3] == {"numberValue": s.date_to_serial(D(2026, 11, 27))}            # D: batch Friday
+    assert cells[6] == {"formulaValue": '=IF(E3="","",NETWORKDAYS(D3+1,E3,$N$2:$N))'}  # G: days past it
+    assert cells[11] == {"stringValue": "Personalised: weekly monogram batch, due 27 Nov 2026"}
+    assert cells[10] == {"stringValue": "1. Open – overdue"}
+
+
+def test_non_personalised_rows_unchanged():
+    o = pev(line("#5356", "2026-11-17T20:13:00Z", loc="New3PL", assigned="New3PL"))
+    cells = s.new_row_cells(FL, 3, o)
+    assert cells[3] == {"formulaValue": "=WORKDAY(B3,2,$N$2:$N)"}
+    assert cells[6] == {"formulaValue": '=IF(E3="","",F3-2)'} and cells[11] is None
+
+
+def test_open_personalised_row_not_marked_late_when_shipped_in_batch():
+    st = s.build_state(FL, fl_values([fl_row(5378, status="1. Open – overdue")]), 498)
+    o = pev(line("#5378", "2026-11-18T05:24:54Z", "2026-11-26T05:00:00Z", loc="New3PL",
+                 assigned="New3PL", tags="Personalisation"), today=D(2026, 11, 28))
+    p = s.plan_sheet(st, {5378: o}, D(2026, 11, 28))
+    assert [(c.col, c.new) for c in p.changes] == [(FL.dispatched_col, D(2026, 11, 26))]
+    assert any("on time" in n for n in p.notes)
