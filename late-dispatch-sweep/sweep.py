@@ -204,6 +204,7 @@ class Order:
     excluded: str | None = None
     completed: dt.date | None = None   # last parcel's date, once nothing is left to ship
     outstanding: int = 0               # units still to ship (part-dispatched orders)
+    personalised: bool = False         # weekly monogram batch: due date is the batch Friday
 
     @property
     def order_date(self) -> dt.date:
@@ -228,10 +229,35 @@ def map_3pl(location: str | None, mapping: dict[str, str]) -> tuple[str | None, 
     return location, False
 
 
+_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def personalised_due(placed: dt.datetime, rule: dict, holidays: set[dt.date]) -> dt.date:
+    """Personalised orders go out in a weekly monogram batch. Precision sends
+    the batch to the monogrammer on `batch_weekday` (orders placed before
+    `batch_cutoff` that day make it), and it ships to customers on
+    `ship_weekday` of the same week. Due = that ship day, or the next
+    business day if it's a holiday or weekend."""
+    batch_wd = _WEEKDAYS.index(rule["batch_weekday"].lower())
+    ship_wd = _WEEKDAYS.index(rule["ship_weekday"].lower())
+    cutoff = dt.time.fromisoformat(rule["batch_cutoff"])
+    d = placed.date()
+    ahead = (batch_wd - d.weekday()) % 7
+    batch = d + dt.timedelta(days=ahead)
+    if ahead == 0 and placed.time().replace(second=0, microsecond=0) >= cutoff:
+        batch += dt.timedelta(days=7)
+    due = batch + dt.timedelta(days=(ship_wd - batch_wd) % 7)
+    while not is_business_day(due, holidays):
+        due += dt.timedelta(days=1)
+    return due
+
+
 def evaluate(raw: dict, holidays: set[dt.date], today: dt.date, tz: ZoneInfo,
-             mapping: dict[str, str], promise_days: int) -> Order:
+             mapping: dict[str, str], promise_days: int, personal: dict | None = None) -> Order:
     placed = to_local(raw["createdAt"], tz)
-    due = workday(placed.date(), promise_days, holidays)
+    personalised = bool(personal) and personal["tag"].lower() in {t.lower() for t in raw["tags"]}
+    due = personalised_due(placed, personal, holidays) if personalised \
+        else workday(placed.date(), promise_days, holidays)
     good = sorted((f for f in raw["fulfillments"]
                    if f["status"].upper() not in ("CANCELLED", "ERROR", "FAILURE")),
                   key=lambda f: f["createdAt"])
@@ -267,7 +293,7 @@ def evaluate(raw: dict, holidays: set[dt.date], today: dt.date, tz: ZoneInfo,
 
     c = to_local(raw["cancelledAt"], tz)
     return Order(order_number(raw["name"]), placed, due, dispatched, c.date() if c else None,
-                 location, tpl, late, excluded, completed, outstanding if good else 0)
+                 location, tpl, late, excluded, completed, outstanding if good else 0, personalised)
 
 
 # --------------------------------------------------------------------------
@@ -314,20 +340,30 @@ def new_row_cells(L: Layout, n: int, o: Order) -> list[dict | None]:
     disp = {"numberValue": date_to_serial(o.dispatched)} if o.dispatched else None
     if L.key == "fault_log":
         h = "$N$2:$N"
+        if o.personalised:
+            # Weekly monogram batch: Due by is the batch Friday (a date, not
+            # the 2-day formula) and "over promise" counts from that date.
+            due_cell = {"numberValue": date_to_serial(o.due)}
+            over_cell = {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(D{n}+1,E{n},{h}))'}
+            note = {"stringValue": f"Personalised: weekly monogram batch, due {short_date(o.due)}"}
+        else:
+            due_cell = {"formulaValue": f"=WORKDAY(B{n},2,{h})"}
+            over_cell = {"formulaValue": f'=IF(E{n}="","",F{n}-2)'}
+            note = None
         return [
             {"numberValue": o.number},                                            # A
             date,                                                                 # B
             time,                                                                 # C
-            {"formulaValue": f"=WORKDAY(B{n},2,{h})"},                            # D
+            due_cell,                                                             # D
             disp,                                                                 # E
             {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(B{n}+1,E{n},{h}))'},    # F
-            {"formulaValue": f'=IF(E{n}="","",F{n}-2)'},                          # G
+            over_cell,                                                            # G
             {"stringValue": o.tpl or ""},                                         # H
             {"formulaValue": f'=IF(AND(WORKDAY(B{n}-1,1,{h})=B{n},C{n}<IF(H{n}="Precision",'
                              f'TIME(6,0,0),TIME(12,0,0))),B{n},WORKDAY(B{n},1,{h}))'},  # I
             {"formulaValue": f'=IF(E{n}="","",NETWORKDAYS(I{n},E{n},{h})-1)'},     # J
             {"stringValue": L.late_status if o.dispatched else L.open_status},    # K
-            None,                                                                 # L notes: people only
+            note,                                                                 # L notes (new rows only)
         ]
     h = "$L$9:$L"
     return [
@@ -579,6 +615,7 @@ def describe(plan: Plan, st: SheetState, cutoffs: dict[str, dt.time]) -> list[st
             else:
                 disp = "not dispatched"
             tpl = f" | {o.tpl}" if L.key == "fault_log" else ""
+            tpl += " | personalised (weekly batch)" if o.personalised and L.key == "fault_log" else ""
             status = L.late_status if o.dispatched else L.open_status
             out.append(f"  row {start + i}: #{o.number} | {short_date(o.order_date)} {hhmm(o.placed.time())}"
                        f" | received {short_date(rec)} | due {short_date(o.due)} | {disp}{tpl} | {status}")
@@ -665,7 +702,8 @@ def cmd_plan(cfg, args) -> int:
     raw = load_orders(WORK / "orders.txt")
     mapping = cfg["location_to_3pl"]
     cutoffs = {k: dt.time.fromisoformat(v) for k, v in cfg["cutoffs"].items()}
-    per_sheet = [{n: evaluate(r, st.holidays, today, tz, mapping, cfg["promise_business_days"])
+    per_sheet = [{n: evaluate(r, st.holidays, today, tz, mapping, cfg["promise_business_days"],
+                           cfg.get("personalisation"))
                   for n, r in raw.items()} for st in states]
     plans = [plan_sheet(st, o, today) for st, o in zip(states, per_sheet)]
 
