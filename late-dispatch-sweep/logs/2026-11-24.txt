@@ -1,0 +1,40 @@
+=== Run at 2026-11-24 06:45 Melbourne: OK ===
+Late dispatch sweep, Tue 24 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 617 placed in the last 30 days
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 59, Precision 68
+New late orders by 3PL: Precision 12
+New rows: Fault Log 12, BTK 0
+Cells to update: Fault Log 2, BTK 3
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add 12 row(s) from row 152:
+  row 152: #5398 | 19 Nov 2026 11:14 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 153: #5404 | 19 Nov 2026 13:21 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 154: #5406 | 19 Nov 2026 13:44 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 155: #5410 | 19 Nov 2026 16:05 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 156: #5411 | 19 Nov 2026 16:37 | received 20 Nov 2026 | due 23 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+  row 157: #5412 | 19 Nov 2026 17:11 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 158: #5417 | 19 Nov 2026 20:42 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 159: #5420 | 19 Nov 2026 22:17 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 160: #5421 | 19 Nov 2026 23:03 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 161: #5422 | 19 Nov 2026 23:06 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 162: #5423 | 19 Nov 2026 23:23 | received 20 Nov 2026 | due 23 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 163: #5424 | 19 Nov 2026 23:38 | received 20 Nov 2026 | due 23 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+Change 2 cell(s):
+  E2: (blank) -> 23 Nov 2026   (#5121 now fulfilled)
+  K2: 1. Open – overdue -> 4. Dispatched late   (#5121 now dispatched)
+
+== BTK Service Register / Late dispatch ==
+Add: none
+Change 3 cell(s):
+  F10: (blank) -> 23 Nov 2026   (#5121 now fulfilled)
+  I10: Not yet dispatched -> Dispatched late   (#5121 now dispatched)
+  A2: status as at 22 November 2026 -> status as at 24 November 2026   (status date)
+
+Writes needed: fault_log, btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: none
+
