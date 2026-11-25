@@ -1,0 +1,66 @@
+=== Run at 2026-11-26 06:45 Melbourne: OK ===
+Late dispatch sweep, Thu 26 Nov 2026 (Melbourne), mode: live
+WARNING: no public holidays on or after today are listed in the sheets.
+Orders checked: 654 placed in the last 30 days
+Excluded: cancelled 3, no shippable items 1
+Late orders in the window by 3PL: BTK 53, Precision 67
+New late orders by 3PL: BTK 1, Precision 2
+New rows: Fault Log 3, BTK 1
+Cells to update: Fault Log 34, BTK 1
+Unmapped locations: none
+
+== Order Fault Log / Late dispatch ==
+Add 3 row(s) from row 164:
+  row 164: #5491 | 21 Nov 2026 22:28 | received 23 Nov 2026 | due 24 Nov 2026 | not dispatched | Precision | 1. Open – overdue
+  row 165: #5558 | 23 Nov 2026 11:24 | received 23 Nov 2026 | due 25 Nov 2026 | not dispatched | BTK | 1. Open – overdue
+  row 166: #5574 | 23 Nov 2026 16:57 | received 24 Nov 2026 | due 25 Nov 2026 | part dispatched, 1 unit(s) still to ship | Precision | 1. Open – overdue
+Change 34 cell(s):
+  E8: (blank) -> 25 Nov 2026   (#5343 now fulfilled)
+  K8: 1. Open – overdue -> 4. Dispatched late   (#5343 now dispatched)
+  E146: (blank) -> 25 Nov 2026   (#5378 now fulfilled)
+  E147: (blank) -> 25 Nov 2026   (#5380 now fulfilled)
+  E148: (blank) -> 24 Nov 2026   (#5382 now fulfilled)
+  K148: 1. Open – overdue -> 4. Dispatched late   (#5382 now dispatched)
+  E149: (blank) -> 24 Nov 2026   (#5386 now fulfilled)
+  K149: 1. Open – overdue -> 4. Dispatched late   (#5386 now dispatched)
+  E150: (blank) -> 25 Nov 2026   (#5390 now fulfilled)
+  E151: (blank) -> 25 Nov 2026   (#5392 now fulfilled)
+  E152: (blank) -> 24 Nov 2026   (#5398 now fulfilled)
+  K152: 1. Open – overdue -> 4. Dispatched late   (#5398 now dispatched)
+  E153: (blank) -> 24 Nov 2026   (#5404 now fulfilled)
+  K153: 1. Open – overdue -> 4. Dispatched late   (#5404 now dispatched)
+  E154: (blank) -> 24 Nov 2026   (#5406 now fulfilled)
+  K154: 1. Open – overdue -> 4. Dispatched late   (#5406 now dispatched)
+  E155: (blank) -> 24 Nov 2026   (#5410 now fulfilled)
+  K155: 1. Open – overdue -> 4. Dispatched late   (#5410 now dispatched)
+  E156: (blank) -> 24 Nov 2026   (#5411 now fulfilled)
+  K156: 1. Open – overdue -> 4. Dispatched late   (#5411 now dispatched)
+  E157: (blank) -> 24 Nov 2026   (#5412 now fulfilled)
+  K157: 1. Open – overdue -> 4. Dispatched late   (#5412 now dispatched)
+  E158: (blank) -> 24 Nov 2026   (#5417 now fulfilled)
+  K158: 1. Open – overdue -> 4. Dispatched late   (#5417 now dispatched)
+  E159: (blank) -> 24 Nov 2026   (#5420 now fulfilled)
+  K159: 1. Open – overdue -> 4. Dispatched late   (#5420 now dispatched)
+  E160: (blank) -> 24 Nov 2026   (#5421 now fulfilled)
+  K160: 1. Open – overdue -> 4. Dispatched late   (#5421 now dispatched)
+  E161: (blank) -> 24 Nov 2026   (#5422 now fulfilled)
+  K161: 1. Open – overdue -> 4. Dispatched late   (#5422 now dispatched)
+  E162: (blank) -> 24 Nov 2026   (#5423 now fulfilled)
+  K162: 1. Open – overdue -> 4. Dispatched late   (#5423 now dispatched)
+  E163: (blank) -> 24 Nov 2026   (#5424 now fulfilled)
+  K163: 1. Open – overdue -> 4. Dispatched late   (#5424 now dispatched)
+  note: #5378 (row 146) dispatched 25 Nov 2026, on time by our calculation; Status not changed.
+  note: #5380 (row 147) dispatched 25 Nov 2026, on time by our calculation; Status not changed.
+  note: #5390 (row 150) dispatched 25 Nov 2026, on time by our calculation; Status not changed.
+  note: #5392 (row 151) dispatched 25 Nov 2026, on time by our calculation; Status not changed.
+
+== BTK Service Register / Late dispatch ==
+Add 1 row(s) from row 72:
+  row 72: #5558 | 23 Nov 2026 11:24 | received 23 Nov 2026 | due 25 Nov 2026 | not dispatched | Not yet dispatched
+Change 1 cell(s):
+  A2: status as at 24 November 2026 -> status as at 26 November 2026   (status date)
+
+Writes needed: fault_log, btk
+Verification: no #REF!/#VALUE!/#NAME?/#N/A; BTK B4:B6 match the rows.
+Errors: none
+
