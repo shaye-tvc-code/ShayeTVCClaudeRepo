@@ -1,0 +1,153 @@
+{
+  "as_of": "2026-11-25",
+  "source_doc": "https://docs.google.com/document/d/1qeGXKSMjET3Pt6LffGd1QIahQYUDLRrH0Q_DHm_sixA/edit",
+  "window_30_days": "26 Oct to 25 Nov 2026",
+  "window_12_months": "25 Nov 2025 to 25 Nov 2026",
+  "note": "These are fixed benchmarks, not recalculated each run. Use them exactly as written. To refresh, tell Claude the new numbers and windows from an updated Shopify Performance Review and it will update this file.",
+  "rows": [
+    {
+      "n": 1,
+      "measure": "Orders per day",
+      "how": "Shopify sales: orders ÷ 7",
+      "target": "15 to 20",
+      "last_30_days": "21.3",
+      "last_12_months": "12.2"
+    },
+    {
+      "n": 2,
+      "measure": "Best day this week",
+      "how": "Shopify sales: orders, TIMESERIES day",
+      "target": "none (plan for 60–80 on the Black Friday / Cyber Monday peak day)",
+      "last_30_days": "n/a",
+      "last_12_months": "58 (Sun 30 Nov 2025)"
+    },
+    {
+      "n": 3,
+      "measure": "Sales per day",
+      "how": "Shopify sales: total_sales ÷ 7",
+      "target": "none",
+      "last_30_days": "$3,177",
+      "last_12_months": "$1,813"
+    },
+    {
+      "n": 4,
+      "measure": "Visits per day",
+      "how": "Shopify sessions: sessions ÷ 7",
+      "target": "none",
+      "last_30_days": "796",
+      "last_12_months": "506"
+    },
+    {
+      "n": 5,
+      "measure": "Visits by source, % of sessions",
+      "how": "Shopify sessions GROUP BY referrer_source, shown as direct / search / social / email / other",
+      "target": "none",
+      "last_30_days": "48.4 / 36.3 / 12.3 / 0.2 / 2.8",
+      "last_12_months": "45.1 / 43.4 / 9.3 / 0.2 / 2.0"
+    },
+    {
+      "n": 6,
+      "measure": "Conversion, overall",
+      "how": "Shopify sessions: conversion_rate",
+      "target": "2.8%",
+      "last_30_days": "2.61%",
+      "last_12_months": "2.33%"
+    },
+    {
+      "n": 7,
+      "measure": "Conversion, mobile",
+      "how": "Shopify sessions: conversion_rate, session_device_type = mobile",
+      "target": "2.7%",
+      "last_30_days": "2.44%",
+      "last_12_months": "2.26%"
+    },
+    {
+      "n": 8,
+      "measure": "Conversion, desktop",
+      "how": "Shopify sessions: conversion_rate, session_device_type = desktop",
+      "target": "none",
+      "last_30_days": "3.11%",
+      "last_12_months": "2.51%"
+    },
+    {
+      "n": 9,
+      "measure": "Visits that added to cart",
+      "how": "Shopify sessions: sessions_with_cart_additions ÷ sessions",
+      "target": "none",
+      "last_30_days": "8.5%",
+      "last_12_months": "6.8%"
+    },
+    {
+      "n": 10,
+      "measure": "Visits that reached checkout",
+      "how": "Shopify sessions: sessions_that_reached_checkout ÷ sessions",
+      "target": "none",
+      "last_30_days": "4.5%",
+      "last_12_months": "3.7%"
+    },
+    {
+      "n": 11,
+      "measure": "Checkouts completed",
+      "how": "Shopify sessions: sessions_that_completed_checkout ÷ sessions_that_reached_checkout",
+      "target": "65%",
+      "last_30_days": "58%",
+      "last_12_months": "63%"
+    },
+    {
+      "n": 12,
+      "measure": "Average order value",
+      "how": "Shopify sales: total_sales ÷ orders (total sales, not net, so it matches the benchmark)",
+      "target": "$130 or more",
+      "last_30_days": "$130.50",
+      "last_12_months": "$130.20"
+    },
+    {
+      "n": 13,
+      "measure": "Items per order",
+      "how": "Shopify sales: quantity_ordered ÷ orders",
+      "target": "2.5",
+      "last_30_days": "2.53",
+      "last_12_months": "2.37"
+    },
+    {
+      "n": 14,
+      "measure": "Returning customers, % of orders",
+      "how": "Shopify sales GROUP BY new_or_returning_customer",
+      "target": "15%",
+      "last_30_days": "14.6%",
+      "last_12_months": "10.6%"
+    },
+    {
+      "n": 15,
+      "measure": "Dispatched within 2 business days",
+      "how": "Order Fault Log — see DISPATCH method in the routine doc",
+      "target": "95%",
+      "last_30_days": "~88%",
+      "last_12_months": "n/a"
+    },
+    {
+      "n": 16,
+      "measure": "Refunds, % of gross sales",
+      "how": "Shopify sales: −sales_reversals ÷ gross_sales",
+      "target": "1.5% or less",
+      "last_30_days": "~0.6%",
+      "last_12_months": "1.5%"
+    },
+    {
+      "n": 17,
+      "measure": "Email share of sales",
+      "how": "Klaviyo: email-attributed revenue (flows + campaigns) ÷ total placed-order revenue",
+      "target": "none",
+      "last_30_days": "~23%",
+      "last_12_months": "~25%"
+    },
+    {
+      "n": 18,
+      "measure": "Meta ad spend and return",
+      "how": "Meta ad account 2379700205613473, account level: amount_spent and purchase_roas",
+      "target": "none",
+      "last_30_days": "$10,525 spend, 4.1 return",
+      "last_12_months": "$45,014 spend, 3.6 return"
+    }
+  ]
+}

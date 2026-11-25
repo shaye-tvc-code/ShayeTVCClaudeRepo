@@ -35,6 +35,13 @@ weekly run this is the Sunday just completed.
   targets" below for how these change Steps 1–3.
 - **Top products / AOV / inventory**: from Shopify analytics, orders, and
   `get-inventory-levels`.
+- **Weekly Health Check (Step 5, weekly run only)**: Shopify Analytics
+  sessions and sales data (see Step 5 for the exact fields), the Order
+  Fault Log (Google Sheets spreadsheet `1B09oeIVXPdwKuBtc4UsSeF5_K5z_czdDgh7gUMw7xGk`,
+  "Late dispatch" tab), Klaviyo (email-attributed revenue), and Meta Ads
+  (account `2379700205613473`). Fixed 30-day/12-month benchmarks and
+  targets for that table come from `config/weekly-health-check-benchmarks.json`
+  in this repo — not recalculated from live data.
 
 ## Step 1 — 📈 Run Rate
 
@@ -118,31 +125,84 @@ For either window, cover:
 
 ## Step 5 — 📊 Weekly Health Check (weekly run only)
 
-Only on the weekly (Monday) run, after Step 4. Five numbers, all from Shopify,
-covering the same Monday–Sunday week as Step 4, that together show whether
-the underlying plan — not just the sales total — is working:
+Only on the weekly (Monday) run, after Step 4.
 
-- **Orders per day**: total orders for the week and the average per day
-  (total ÷ 7). This is the overall result the other four numbers help
-  explain.
-- **Visits and where they come from**: total sessions for the week, broken
-  down by traffic source/channel (e.g. direct, organic search, paid search,
-  social, email, referral) via Shopify Analytics (`run-analytics-query` /
-  ShopifyQL `sessions` by referrer/channel dimension). Tells us whether
-  there's a traffic problem.
-- **Conversion rate, mobile and desktop separately**: orders ÷ sessions for
-  the week, split by device type. Tells us whether the site turns visitors
-  into buyers, and whether that differs by device.
-- **Average order value**: net sales ÷ order count for the week. Tells us
-  whether bundles and add-ons are working.
-- **Share of orders from returning customers**: of the week's orders, the
-  % placed by a customer who had at least one order before this week
-  (Shopify customer/order history — a "new" vs "returning" order split).
-  Tells us whether past buyers are coming back.
+**Window**: the same Monday–Sunday week as Step 4.
 
-Report these as five short, clearly-labeled lines (not prose) so they're
-easy to scan week over week. Don't editorialize or add a verdict — Step 4
-already covers commentary and patterns; this section is just the numbers.
+**Output**: one HTML table, then up to 3 one-line flags for the biggest
+misses against target. Keep commentary for Step 4 — this section doesn't
+editorialize beyond those flags.
+
+**Table columns**: Measure | This week | Target | Last 30 days | Last 12
+months | vs target (✅ met / ⚠️ missed / – no target)
+
+**Benchmarks**: the "Last 30 days" and "Last 12 months" columns are fixed
+benchmarks, not recalculated from live data — read them from
+`config/weekly-health-check-benchmarks.json` in this repo (via
+`get_file_contents`) and use them exactly as given. They were taken from the
+Shopify Performance Review (linked in that file) as of the file's `as_of`
+date, covering the file's `window_30_days` and `window_12_months` date
+ranges. Only "This week" and the vs-target verdict are computed live each
+run. To refresh the benchmarks (a new performance review), tell Claude the
+new numbers and it will update that config file — same pattern as the
+monthly sales target.
+
+**Rows** (measure — how to compute "This week" live — see the config file
+for target/30-day/12-month values):
+
+1. **Orders per day** — Shopify sales: orders ÷ 7.
+2. **Best day this week** — Shopify sales: orders, TIMESERIES day (report
+   the single highest day and its date).
+3. **Sales per day** — Shopify sales: total_sales ÷ 7.
+4. **Visits per day** — Shopify sessions: sessions ÷ 7.
+5. **Visits by source, % of sessions** — Shopify sessions GROUP BY
+   referrer_source, shown as direct / search / social / email / other (same
+   order as the config file's values, so the columns line up).
+6. **Conversion, overall** — Shopify sessions: conversion_rate.
+7. **Conversion, mobile** — same, session_device_type = mobile.
+8. **Conversion, desktop** — same, session_device_type = desktop.
+9. **Visits that added to cart** — sessions_with_cart_additions ÷ sessions.
+10. **Visits that reached checkout** — sessions_that_reached_checkout ÷
+    sessions.
+11. **Checkouts completed** — sessions_that_completed_checkout ÷
+    sessions_that_reached_checkout.
+12. **Average order value** — Shopify sales: total_sales ÷ orders (total
+    sales, not net, so it matches the benchmark — this differs from Steps
+    1-4's AOV, which use net sales).
+13. **Items per order** — Shopify sales: quantity_ordered ÷ orders.
+14. **Returning customers, % of orders** — Shopify sales GROUP BY
+    new_or_returning_customer.
+15. **Dispatched within 2 business days** — Order Fault Log — see DISPATCH
+    below.
+16. **Refunds, % of gross sales** — Shopify sales: −sales_reversals ÷
+    gross_sales.
+17. **Email share of sales** — Klaviyo: email-attributed revenue (flows +
+    campaigns) ÷ total placed-order revenue.
+18. **Meta ad spend and return** — Meta ad account 2379700205613473,
+    account level: amount_spent and purchase_roas.
+
+**DISPATCH (row 15)**: read the "Late dispatch" tab of the Order Fault Log
+(spreadsheet `1B09oeIVXPdwKuBtc4UsSeF5_K5z_czdDgh7gUMw7xGk`).
+- Count rows whose "Due by (2 business days)" date falls in the week and
+  whose Status is "4. Dispatched late" or "1. Open – overdue".
+- Leave out personalised orders (any row whose notes say "Personalised
+  order") and any row with Status "5. Closed".
+- On time % = 1 − (late count ÷ the week's Online Store orders from
+  Shopify).
+- Show BTK and Precision separately in brackets.
+- Precision marks orders fulfilled in Shopify about 2 days after they
+  actually leave. If a row's notes give an earlier actual dispatch date,
+  use that date instead of the Shopify fulfillment date.
+
+**Notes under the table** (one line each, only when they apply):
+- Shopify undercounts email visits, because Klaviyo clicks arrive without
+  UTM tags and show as direct.
+- Klaviyo and Meta both credit themselves generously and overlap with each
+  other. Don't add the two together.
+- If a source can't be reached (Klaviyo, Meta, or the fault log), show
+  "n/a – [source] unavailable" in that row and carry on. Only send the
+  failure-notification email (see Failure handling below) if Shopify itself
+  fails — a single secondary source being unreachable is not a run failure.
 
 ## Output: email
 
