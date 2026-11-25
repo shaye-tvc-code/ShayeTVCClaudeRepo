@@ -116,6 +116,34 @@ For either window, cover:
   window against a trailing baseline (e.g. trailing 30 days) and comment
   on whether it's up, down, or flat.
 
+## Step 5 — 📊 Weekly Health Check (weekly run only)
+
+Only on the weekly (Monday) run, after Step 4. Five numbers, all from Shopify,
+covering the same Monday–Sunday week as Step 4, that together show whether
+the underlying plan — not just the sales total — is working:
+
+- **Orders per day**: total orders for the week and the average per day
+  (total ÷ 7). This is the overall result the other four numbers help
+  explain.
+- **Visits and where they come from**: total sessions for the week, broken
+  down by traffic source/channel (e.g. direct, organic search, paid search,
+  social, email, referral) via Shopify Analytics (`run-analytics-query` /
+  ShopifyQL `sessions` by referrer/channel dimension). Tells us whether
+  there's a traffic problem.
+- **Conversion rate, mobile and desktop separately**: orders ÷ sessions for
+  the week, split by device type. Tells us whether the site turns visitors
+  into buyers, and whether that differs by device.
+- **Average order value**: net sales ÷ order count for the week. Tells us
+  whether bundles and add-ons are working.
+- **Share of orders from returning customers**: of the week's orders, the
+  % placed by a customer who had at least one order before this week
+  (Shopify customer/order history — a "new" vs "returning" order split).
+  Tells us whether past buyers are coming back.
+
+Report these as five short, clearly-labeled lines (not prose) so they're
+easy to scan week over week. Don't editorialize or add a verdict — Step 4
+already covers commentary and patterns; this section is just the numbers.
+
 ## Output: email
 
 Send (or draft, if no send-capable email connector is available).
@@ -124,10 +152,11 @@ Formatting conventions:
 - Open with: `⭐ Stackers eComm Sales run rate – [date range]` (date range =
   the month-to-date range covered, e.g. "1–15 July 2026" — this convention
   is the same across all trigger variants).
-- `---` dividers between each of the four sections.
+- `---` dividers between each section (four on weekday runs; five on the
+  weekly run, which adds Step 5).
 - **Bold headers** for each section, each prefixed with its emoji
   (📈 Run Rate, 🏆 target-beat section, ⚠️ target-shortfall section,
-  🔍 Emerging Patterns).
+  🔍 Emerging Patterns, 📊 Weekly Health Check on the weekly run only).
 - Use these emojis consistently throughout the body wherever referencing
   that section's topic, not just in headers.
 - Close with something in the spirit of "Let's get after it! 🚀" — vary the
