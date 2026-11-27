@@ -89,6 +89,8 @@ Then write `late-dispatch-sweep/work/meta.json`:
 
 Run `H stale`. If it prints `NONE`, go on. Otherwise it prints a search string such as `name:#4801 OR name:#4802`: run the same `graphql_query` with `q` set to that string and append those orders to `orders.txt` in the same format.
 
+Rows whose order cell isn't a Shopify order number (`5121` or `#5121`), such as B2B references like `LAT-20261104-1443` or `PO0022159`, are B2B orders that are not in Shopify. The helper ignores them, so they are never searched for or changed.
+
 ## 5. Plan
 
 Run `H plan`. It checks the sheets for existing errors, works out every addition and change, prints the plan, and writes `work/fault_log_requests.json`, `work/btk_requests.json` and matching `*_rollback.json` files.

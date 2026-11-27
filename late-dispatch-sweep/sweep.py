@@ -216,8 +216,11 @@ def order_number(v) -> int | None:
         return None
     if isinstance(v, (int, float)):
         return int(v)
-    digits = re.sub(r"\D", "", str(v))
-    return int(digits) if digits else None
+    # Only Shopify order numbers ("5121" or "#5121"). Anything else, such as a
+    # B2B reference like "LAT-20261104-1443" or "PO0022159", is not a Shopify
+    # order: the sweep leaves those rows alone and never searches Shopify for them.
+    m = re.fullmatch(r"#?\s*(\d+)(?:\.0+)?", str(v).strip())
+    return int(m.group(1)) if m else None
 
 
 def map_3pl(location: str | None, mapping: dict[str, str]) -> tuple[str | None, bool]:

@@ -429,3 +429,13 @@ def test_open_personalised_row_not_marked_late_when_shipped_in_batch():
     p = s.plan_sheet(st, {5378: o}, D(2026, 11, 28))
     assert [(c.col, c.new) for c in p.changes] == [(FL.dispatched_col, D(2026, 11, 26))]
     assert any("on time" in n for n in p.notes)
+
+
+# ---- B2B references ------------------------------------------------------
+
+def test_b2b_references_are_not_shopify_orders():
+    assert s.order_number("5121") == 5121
+    assert s.order_number("#5087") == 5087
+    assert s.order_number(5121.0) == 5121
+    assert s.order_number("LAT-20261104-1443") is None
+    assert s.order_number("PO0022159") is None
